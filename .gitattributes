@@ -1,0 +1,10 @@
+# Line endings. Shell scripts and the Docker entrypoint must keep LF even when the repo is cloned on Windows,
+# or the container stops at start-up with "sh\r: not found".
+* text=auto
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
+Dockerfile text eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.sqlite3 binary

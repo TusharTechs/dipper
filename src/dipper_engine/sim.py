@@ -181,7 +181,7 @@ def load_networks(reach_dir: Path, n_synthetic: int = 2, max_access: int = 60) -
         g.place_synthetic_candidates(14, seed=100 + i)
         nets.append(g)
     for p in sorted(reach_dir.glob("*.geojson")):
-        g = ReachGraph.from_geojson(json.loads(p.read_text()))
+        g = ReachGraph.from_geojson(json.loads(p.read_text(encoding="utf-8")))
         if len(g.candidates) >= 4 and len(g.access_nodes) <= max_access:
             nets.append(g)
     return nets
@@ -214,7 +214,7 @@ def main() -> None:
     rel = {k: (str(Path(v).resolve().relative_to(root)) if k in ("reaches", "out") and Path(v).resolve().is_relative_to(root)
                else Path(v).name if k in ("reaches", "out") else v) for k, v in vars(args).items()}
     out.write_text(json.dumps({"label": "SIMULATION", "args": rel, "networks": [n.name for n in nets],
-                               "summary": rows, "elapsed_s": round(time.time() - t0, 1)}, indent=2))
+                               "summary": rows, "elapsed_s": round(time.time() - t0, 1)}, indent=2), encoding="utf-8")
     print(f"SourceBench (SIMULATION) · {len(nets)} networks · {args.trials} trials each · misspec={args.misspec} · "
           f"bursty={not args.no_bursty} · {time.time() - t0:.0f}s")
     print(f"{'network':28} {'policy':8} {'success':>8} {'wrong':>6} {'med.checks':>10} {'med.ok':>7} {'cost':>6}")

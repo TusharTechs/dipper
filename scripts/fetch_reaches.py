@@ -56,7 +56,7 @@ def main() -> None:
             g.meta |= {"candidates": "synthetic, 1 per ~130 m unless set", "fetched": time.strftime("%Y-%m-%d"),
                        "tz": TZ.get(city, "UTC")}
             path = OUT / f"{slug(city)}-{slug(name)}.geojson"
-            path.write_text(json.dumps(g.to_geojson()))
+            path.write_text(json.dumps(g.to_geojson()), encoding="utf-8")
             print(f"{name}: {len(g.nodes)} nodes, {g.total_length_m:.0f} m, {len(g.access_nodes)} access, "
                   f"{k} candidates, {len(g.places)} places, gaps bridged {g.meta['gaps_bridged']}, "
                   f"fragments dropped {g.meta['fragments_dropped']} -> {path.name}")

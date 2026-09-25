@@ -241,7 +241,7 @@ def reach(reach_id: str) -> ReachGraph:
             path = REACH_DIR / f"{reach_id}.geojson"
             if not path.exists() or path.resolve().parent != REACH_DIR.resolve():
                 raise HTTPException(404, f"unknown reach {reach_id}")
-            _reaches[reach_id] = ReachGraph.from_geojson(json.loads(path.read_text()))
+            _reaches[reach_id] = ReachGraph.from_geojson(json.loads(path.read_text(encoding="utf-8")))
         return _reaches[reach_id]
 
 
@@ -940,7 +940,7 @@ def sim_results() -> dict:
     path = ROOT / "data" / "sourcebench" / "results.json"
     if not path.exists():
         raise HTTPException(404, "no SourceBench results yet")
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 @app.post("/v1/sim/runs")

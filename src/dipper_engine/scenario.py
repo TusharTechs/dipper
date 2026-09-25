@@ -42,7 +42,7 @@ REPORT_FEATURES = [
 
 
 def load_reach(path: Path = REACH_FILE) -> ReachGraph:
-    return ReachGraph.from_geojson(json.loads(path.read_text()))
+    return ReachGraph.from_geojson(json.loads(path.read_text(encoding="utf-8")))
 
 
 def truth_result(graph: ReachGraph, check: ProposedCheck, source: str = TRUE_SOURCE) -> bool:

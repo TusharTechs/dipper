@@ -23,7 +23,7 @@ def _fetch_hourly(lat: float, lon: float, start: datetime, end: datetime,
     key = f"openmeteo_{lat:.3f}_{lon:.3f}_{start:%Y%m%d}_{end:%Y%m%d}.json"
     for d in dirs:
         if (d / key).exists():
-            return json.loads((d / key).read_text())
+            return json.loads((d / key).read_text(encoding="utf-8"))
     recent = (datetime.now(timezone.utc).date() - end.date()).days < 6
     params = {"latitude": lat, "longitude": lon, "hourly": "precipitation,temperature_2m", "timezone": "UTC"}
     if recent:
@@ -39,7 +39,7 @@ def _fetch_hourly(lat: float, lon: float, start: datetime, end: datetime,
     if dirs:
         try:
             dirs[0].mkdir(parents=True, exist_ok=True)
-            (dirs[0] / key).write_text(json.dumps(data))
+            (dirs[0] / key).write_text(json.dumps(data), encoding="utf-8")
         except OSError:
             pass
     return data

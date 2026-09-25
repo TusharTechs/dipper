@@ -74,7 +74,7 @@ def main() -> None:
             rows.append({"id": fid, "bucket": bucket, "query": q, "bytes": len(data), **item})
             time.sleep(1.0)
         time.sleep(1.5)
-    (OUT / "candidates.json").write_text(json.dumps(rows, indent=2, ensure_ascii=False))
+    (OUT / "candidates.json").write_text(json.dumps(rows, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"{len(rows)} photos, {sum(r['bytes'] for r in rows) / 1e6:.1f} MB")
     for r in rows:
         print(f"{r['id']:10} {r['license']:14} {r['title'][:70]}")

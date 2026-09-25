@@ -28,8 +28,8 @@ from dipper_engine.photo import (  # noqa: E402
 
 
 def run(provider: str, cache: Path) -> dict:
-    out = json.loads(cache.read_text()) if cache.exists() else {}
-    labels = json.loads((EVAL / "labels.json").read_text())["labels"]
+    out = json.loads(cache.read_text(encoding="utf-8")) if cache.exists() else {}
+    labels = json.loads((EVAL / "labels.json").read_text(encoding="utf-8"))["labels"]
     for pid in labels:
         if pid in out and "features" in out[pid]:
             continue
@@ -46,13 +46,13 @@ def run(provider: str, cache: Path) -> dict:
                     break
                 time.sleep(10 * (attempt + 1))
         print(f"{pid:12} {'ok' if 'features' in out[pid] else out[pid]['error']}")
-        cache.write_text(json.dumps(out, indent=2))
+        cache.write_text(json.dumps(out, indent=2), encoding="utf-8")
         time.sleep(1.0)
     return out
 
 
 def score(results: dict) -> dict:
-    lab = json.loads((EVAL / "labels.json").read_text())
+    lab = json.loads((EVAL / "labels.json").read_text(encoding="utf-8"))
     feats, labels = lab["features"], lab["labels"]
     per = {f: {"tp": 0, "fp": 0, "fn": 0, "tn": 0} for f in feats}
     scope = {"tp": 0, "fp": 0, "fn": 0, "tn": 0}
@@ -132,10 +132,10 @@ def main() -> None:
     provider = vision_provider()
     model = GEMINI_MODEL if provider == "gemini" else DEFAULT_MODEL
     cache = EVAL / f"results-{provider}.json"
-    results = json.loads(cache.read_text()) if args.rescore else run(provider, cache)
+    results = json.loads(cache.read_text(encoding="utf-8")) if args.rescore else run(provider, cache)
     s = score(results)
     md = report(s, provider, model)
-    (EVAL / f"report-{provider}.md").write_text(md)
+    (EVAL / f"report-{provider}.md").write_text(md, encoding="utf-8")
     print(md)
 
 

@@ -20,12 +20,12 @@ def main() -> None:
     for ev in replay():
         case = ev["case"]
         if ev["step"] == 2:
-            (OUT / "c014-searching.bundle.json").write_text(json.dumps(case_bundle(case, NOW), indent=2, ensure_ascii=False))
+            (OUT / "c014-searching.bundle.json").write_text(json.dumps(case_bundle(case, NOW), indent=2, ensure_ascii=False), encoding="utf-8")
     case.act("advisory", approver="ph-officer-01")
     case.act("notify_utility", approver="tech-01", payload={"outfall": case.belief.top_source()[0]})
-    (OUT / "c014-handed-off.bundle.json").write_text(json.dumps(case_bundle(case, NOW), indent=2, ensure_ascii=False))
+    (OUT / "c014-handed-off.bundle.json").write_text(json.dumps(case_bundle(case, NOW), indent=2, ensure_ascii=False), encoding="utf-8")
     for p in sorted(OUT.glob("*.json")):
-        b = json.loads(p.read_text())
+        b = json.loads(p.read_text(encoding="utf-8"))
         kinds: dict[str, int] = {}
         for e in b["entry"]:
             kinds[e["resource"]["resourceType"]] = kinds.get(e["resource"]["resourceType"], 0) + 1
