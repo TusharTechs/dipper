@@ -16,3 +16,4 @@ fhir/ig/fsh-generated/
 web/dist/
 data/dipper.sqlite3*
 data/media/
+data/research-probes/
