@@ -6,8 +6,8 @@
     "policies": "walk,bisect,entropy,voi,random",
     "misspec": 1.3,
     "no_bursty": false,
-    "reaches": "/Users/tusharagrawal/Documents/dipper/data/reaches",
-    "out": "/Users/tusharagrawal/Documents/dipper/data/sourcebench/results.json"
+    "reaches": "data/reaches",
+    "out": "data/sourcebench/results.json"
   },
   "networks": [
     "synthetic-1",
@@ -420,5 +420,5 @@
       "mean_cost": 1.487
     }
   ],
-  "elapsed_s": 171.9
+  "elapsed_s": 78.2
 }

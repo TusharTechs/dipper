@@ -209,7 +209,11 @@ def main() -> None:
     rows = summarise(results)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps({"label": "SIMULATION", "args": vars(args), "networks": [n.name for n in nets],
+    root = Path(__file__).resolve().parents[2]
+    # Paths are stored relative to the repository, so results never carry a local home directory.
+    rel = {k: (str(Path(v).resolve().relative_to(root)) if k in ("reaches", "out") and Path(v).resolve().is_relative_to(root)
+               else Path(v).name if k in ("reaches", "out") else v) for k, v in vars(args).items()}
+    out.write_text(json.dumps({"label": "SIMULATION", "args": rel, "networks": [n.name for n in nets],
                                "summary": rows, "elapsed_s": round(time.time() - t0, 1)}, indent=2))
     print(f"SourceBench (SIMULATION) · {len(nets)} networks · {args.trials} trials each · misspec={args.misspec} · "
           f"bursty={not args.no_bursty} · {time.time() - t0:.0f}s")

@@ -217,11 +217,18 @@ def test_spoofed_forwarded_for_does_not_escape_the_rate_limit(api, monkeypatch):
     codes = [client.post("/v1/signals", json=body, headers={"X-Forwarded-For": f"10.0.0.{i}"}).status_code
              for i in range(32)]
     assert 429 in codes
-    # behind one declared proxy, the proxy-appended entry identifies the client
-    main._hits.clear()
     monkeypatch.setattr(main, "PROXY_HOPS", 1)
-    codes = [client.post("/v1/signals", json=body, headers={"X-Forwarded-For": f"6.6.6.6, 10.0.0.{i}"}).status_code
-             for i in range(32)]
+    # a peer that is not a declared proxy cannot rotate forwarded addresses to escape the limit
+    main._hits.clear()
+    with TestClient(main.app, client=("203.0.113.9", 40000)) as outsider:
+        codes = [outsider.post("/v1/signals", json=body, headers={"X-Forwarded-For": f"10.0.0.{i}"}).status_code
+                 for i in range(32)]
+    assert 429 in codes
+    # behind the declared proxy, the proxy-appended entry identifies each real client
+    main._hits.clear()
+    with TestClient(main.app, client=("127.0.0.1", 40000)) as proxy:
+        codes = [proxy.post("/v1/signals", json=body, headers={"X-Forwarded-For": f"6.6.6.6, 10.0.0.{i}"}).status_code
+                 for i in range(32)]
     assert 429 not in codes
 
 
@@ -480,3 +487,63 @@ def test_concurrent_traffic_across_cases_replays_to_the_same_posteriors(api):
     for cid in cids:
         assert len(reloaded[cid].belief.observations) == len(main._cases[cid].belief.observations)
         assert np.allclose(reloaded[cid].belief.p, main._cases[cid].belief.p)
+
+
+def test_a_flood_of_anonymous_answers_cannot_hand_off_a_case(api):
+    """The steering attack found in review: many anonymous clean reports, each answering its mission 'polluted'."""
+    main, client = api
+    inv = token(client, "inspector")
+    g = main.reach("coimbra-ribeira-de-coselhas")
+    pts = sorted((n for n in g.nodes.values() if n.access), key=lambda n: n.dist_to_outlet_m)
+    first = client.post("/v1/signals", json={"reach_id": g_id(), "lat": pts[3].lat, "lon": pts[3].lon,
+                                             "features": {"grey": True}}).json()
+    cid = first["case_id"]
+    for i in range(7):
+        nd = pts[3 + i]
+        r = client.post("/v1/signals", json={"reach_id": g_id(), "lat": nd.lat, "lon": nd.lon, "features": {}}).json()
+        tok = {"X-Report-Token": r["report_token"]}
+        m = client.get(f"/v1/citizen/cases/{cid}", headers=tok).json()["mission"]
+        if m:
+            wrong = client.post(f"/v1/citizen/cases/{cid}/checks", headers=tok,
+                                json={"mission_key": "outfall_look:O1:citizen", "positive": True})
+            assert wrong.status_code == 409 or m["key"] == "outfall_look:O1:citizen"   # only the assigned mission
+            client.post(f"/v1/citizen/cases/{cid}/checks", json={"mission_key": m["key"], "positive": True}, headers=tok)
+    case = main._cases[cid]
+    assert all(o.role == "citizen" for o in case.belief.observations)
+    assert case.status != "localized"                                   # citizen evidence alone never localizes
+    assert client.post(f"/v1/cases/{cid}/actions", json={"type": "notify_utility"}, headers=inv).status_code == 409
+
+
+def test_closing_needs_a_verified_fix_and_advisories_outlive_the_case(api):
+    main, client = api
+    inv, ph = token(client, "inspector"), token(client, "public_health")
+    cid = client.post("/v1/scenarios/c014", headers=inv).json()["id"]
+    for _ in range(8):
+        client.post(f"/v1/scenarios/{cid}/autostep", headers=inv)
+    act = lambda body, who=inv: client.post(f"/v1/cases/{cid}/actions", json=body, headers=who)
+    act({"type": "advisory"}, ph)
+    act({"type": "notify_utility"})
+    assert act({"type": "close"}).status_code == 409                    # not before a verified fix
+    assert act({"type": "reopen", "note": "dye test negative"}).json()["status"] == "localizing"
+    assert len(client.get("/v1/public/advisories").json()) == 1          # the advisory is untouched
+    act({"type": "dismiss", "note": "no source found"})
+    assert main._cases[cid].status == "dismissed"
+    assert len(client.get("/v1/public/advisories").json()) == 1          # only public health lifts it
+    assert act({"type": "lift_advisory"}, ph).status_code == 200
+    assert client.get("/v1/public/advisories").json() == []
+
+
+def test_fhir_ids_from_different_cases_never_collide(api):
+    import re
+    main, client = api
+    inv = token(client, "inspector")
+    bundles = []
+    for r in ("coimbra-ribeira-de-coselhas", "oslo-hovinbekken"):
+        nd = [n for n in main.reach(r).nodes.values() if n.access][2]
+        cid = client.post("/v1/signals", json={"reach_id": r, "lat": nd.lat, "lon": nd.lon,
+                                               "features": {"grey": True}}).json()["case_id"]
+        bundles.append(client.get(f"/v1/cases/{cid}/fhir", headers=inv).json())
+    ids = [{f"{e['resource']['resourceType']}/{e['resource']['id']}" for e in b["entry"]} for b in bundles]
+    assert ids[0] & ids[1] <= {"Device/dev-dipper-engine"}             # only the shared engine description
+    for i in ids[0] | ids[1]:
+        assert re.fullmatch(r"[A-Za-z0-9\-.]{1,64}", i.split("/", 1)[1]), i

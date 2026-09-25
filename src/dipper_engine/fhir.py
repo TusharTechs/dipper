@@ -2,7 +2,8 @@
 
 OAH profiles used: LocationOah, GroupOah. Dipper profiles (fhir/ig): DipperCitizenObservation, DipperSourceCase
 (DetectedIssue), DipperExposureRisk (RiskAssessment), DipperCheckRequest (ServiceRequest), DipperFieldTask (Task),
-DipperSiteFlag (Flag), DipperAdvisory (Communication), DipperEngineProvenance (Provenance).
+DipperSiteFlag (Flag), DipperAdvisory (Communication), DipperEngineProvenance (Provenance), and
+DipperConfirmationRequest (ServiceRequest) for confirming the entry point before repair.
 
 Synthetic content is tagged: meta.tag data tier and meta.security HL7 ActReason HTEST; ids are prefixed SIM-.
 """
@@ -84,7 +85,11 @@ class _Builder:
         self.case, self.g, self.b = case, case.graph, case.belief
         self.now = now
         self.sim = any(o.tier == "simulated" for o in self.b.observations)
+        # Ids are namespaced by stream and case, so bundles from different cases (or cities) pushed to one FHIR
+        # server never overwrite each other: every city numbers its outfalls O-1, O-2, ...
         self.pfx = "SIM-" if self.sim else ""
+        self.reach_ns = _slug(self.g.name)[:24]
+        self.case_ns = f"{self.reach_ns}-{_slug(case.id)}"
         self.entries: list[dict[str, Any]] = []
         self._locs: dict[str, str] = {}
 
@@ -128,11 +133,11 @@ class _Builder:
         if candidate_id:
             c = self.g.candidate(candidate_id)
             nd = self.g.nodes[c.node_id]
-            rid, name, tier = f"{self.pfx}loc-outfall-{c.id}", f"Candidate outfall {c.label}", "simulated" if c.synthetic else "observed"
+            rid, name, tier = f"{self.pfx}loc-{self.reach_ns}-outfall-{_slug(c.id)}", f"Candidate outfall {c.label}", "simulated" if c.synthetic else "observed"
             desc = "Candidate outfall" + (" (synthetic; placed for demonstration)" if c.synthetic else "")
         else:
             nd = self.g.nodes[node_id]
-            rid, name, tier = f"{self.pfx}loc-pt-{_slug(node_id)}", self.g.node_label(node_id).capitalize(), "observed"
+            rid, name, tier = f"{self.pfx}loc-{self.reach_ns}-pt-{_slug(node_id)}", self.g.node_label(node_id).capitalize(), "observed"
             desc = f"Stream point on {self.g.name}"
         ref = self.add({
             "resourceType": "Location", "id": rid, "meta": self.meta(f"{OAH}/StructureDefinition/location-oah", tier),
@@ -157,7 +162,7 @@ class _Builder:
             main = {"coding": [_coding(OAH_CS, "foam", "Foam/colour/smell"), _coding(DIP_CS, code, disp)]}
             value = {"valueBoolean": o.positive}
         res: dict[str, Any] = {
-            "resourceType": "Observation", "id": f"{self.pfx}obs-{i:03d}",
+            "resourceType": "Observation", "id": f"{self.pfx}obs-{self.case_ns}-{i:03d}",
             "meta": self.meta(f"{DIP}/StructureDefinition/dipper-citizen-observation", o.tier),
             "status": "final" if o.role == "inspector" else "preliminary",
             "category": [_cc("http://terminology.hl7.org/CodeSystem/observation-category", "survey" if o.role == "citizen" else "exam",
@@ -187,7 +192,7 @@ class _Builder:
         if top_id not in (OUTSIDE, NONE):
             implicated.insert(0, {"reference": self.point_location(candidate_id=top_id)})
         issue = self.add({
-            "resourceType": "DetectedIssue", "id": f"{self.pfx}case-{_slug(case.id)}",
+            "resourceType": "DetectedIssue", "id": f"{self.pfx}case-{self.case_ns}",
             "meta": self.meta(f"{DIP}/StructureDefinition/dipper-source-case"),
             "identifier": [{"system": f"{IDS}:case-id", "value": case.id}],
             "status": "final" if case.status in ("handed_off", "fixed", "verified", "closed") else "preliminary",
@@ -210,7 +215,7 @@ class _Builder:
         p_exp = max([e["p_affected"] for e in exposure], default=b.p_harmful())
         places = "; ".join(f"{e['label']} ({e['p_affected']:.0%})" for e in exposure[:3]) or "no mapped contact places"
         risk = self.add({
-            "resourceType": "RiskAssessment", "id": f"{self.pfx}risk-{_slug(case.id)}",
+            "resourceType": "RiskAssessment", "id": f"{self.pfx}risk-{self.case_ns}",
             "meta": self.meta(f"{DIP}/StructureDefinition/dipper-exposure-risk"),
             "status": "preliminary", "subject": {"reference": group}, "occurrenceDateTime": self.now.isoformat(),
             "performer": {"reference": device},
@@ -232,7 +237,7 @@ class _Builder:
             ct_code, ct_disp = CHECK_CODES[r.check.check_type]
             loc = self.point_location(r.check.node_id, r.check.candidate_id)
             sr = self.add({
-                "resourceType": "ServiceRequest", "id": f"{self.pfx}req-{_slug(case.id)}-next",
+                "resourceType": "ServiceRequest", "id": f"{self.pfx}req-{self.case_ns}-next",
                 "meta": self.meta(f"{DIP}/StructureDefinition/dipper-check-request"),
                 "extension": [{"url": f"{DIP}/StructureDefinition/dipper-value-of-information", "valueDecimal": round(r.score, 4)},
                               {"url": f"{DIP}/StructureDefinition/dipper-check-cost", "valueDecimal": r.cost}],
@@ -241,7 +246,7 @@ class _Builder:
                 "reasonCode": [{"text": r.reason}], "supportingInfo": [{"reference": issue}, {"reference": risk}],
             })
             self.add({
-                "resourceType": "Task", "id": f"{self.pfx}task-{_slug(case.id)}-next",
+                "resourceType": "Task", "id": f"{self.pfx}task-{self.case_ns}-next",
                 "meta": self.meta(f"{DIP}/StructureDefinition/dipper-field-task"),
                 "status": "requested", "intent": "proposal", "basedOn": [{"reference": sr}], "for": {"reference": loc},
                 "authoredOn": self.now.isoformat(), "businessStatus": {"text": f"Awaiting a {r.check.role} volunteer"},
@@ -253,7 +258,7 @@ class _Builder:
             # asks the utility to confirm the entry point before anyone digs.
             loc = self.point_location(None, top_id)
             conf = self.add({
-                "resourceType": "ServiceRequest", "id": f"{self.pfx}confirm-{_slug(case.id)}",
+                "resourceType": "ServiceRequest", "id": f"{self.pfx}confirm-{self.case_ns}",
                 "meta": self.meta(f"{DIP}/StructureDefinition/dipper-confirmation-request"),
                 "status": "active", "intent": "order" if case.status == "handed_off" else "proposal",
                 "code": _cc(DIP_CS, "confirm-entry", "Confirm the entry point before repair"),
@@ -263,7 +268,7 @@ class _Builder:
                 "supportingInfo": [{"reference": issue}, {"reference": risk}],
             })
             self.add({
-                "resourceType": "Task", "id": f"{self.pfx}task-{_slug(case.id)}-confirm",
+                "resourceType": "Task", "id": f"{self.pfx}task-{self.case_ns}-confirm",
                 "meta": self.meta(f"{DIP}/StructureDefinition/dipper-field-task"),
                 "status": "requested", "intent": "order" if case.status == "handed_off" else "proposal",
                 "basedOn": [{"reference": conf}], "for": {"reference": loc}, "authoredOn": self.now.isoformat(),
@@ -275,7 +280,7 @@ class _Builder:
         lifts = [a for a in case.actions if a.type == "lift_advisory"]
         if view["advisory_suggested"] or advisories:
             flag = self.add({
-                "resourceType": "Flag", "id": f"{self.pfx}flag-{_slug(case.id)}",
+                "resourceType": "Flag", "id": f"{self.pfx}flag-{self.case_ns}",
                 "meta": self.meta(f"{DIP}/StructureDefinition/dipper-site-flag"),
                 "status": "active" if case.advisory_active or not advisories else "inactive",
                 "code": _cc(DIP_CS, "contact-advisory", "Avoid contact with the water"),
@@ -286,7 +291,7 @@ class _Builder:
             for k, a in enumerate(advisories):
                 text = a.payload.get("text") or advisory_text(self.g.name, self.g.city)
                 self.add({
-                    "resourceType": "Communication", "id": f"{self.pfx}advisory-{_slug(case.id)}-{k + 1}",
+                    "resourceType": "Communication", "id": f"{self.pfx}advisory-{self.case_ns}-{k + 1}",
                     "meta": self.meta(f"{DIP}/StructureDefinition/dipper-advisory"),
                     "status": "completed", "subject": {"reference": group}, "about": [{"reference": flag}, {"reference": risk}],
                     "sent": a.at.isoformat(), "sender": {"display": f"Approved by {_staff_ref(a.approver)}"},
@@ -294,7 +299,7 @@ class _Builder:
                     "payload": [{"contentString": text[l]} for l in sorted(text, key=lambda l: l == "en")],
                 })
         self.add({
-            "resourceType": "Provenance", "id": f"{self.pfx}prov-{_slug(case.id)}",
+            "resourceType": "Provenance", "id": f"{self.pfx}prov-{self.case_ns}",
             "meta": self.meta(f"{DIP}/StructureDefinition/dipper-engine-provenance"),
             "target": [{"reference": t} for t in targets], "recorded": self.now.isoformat(),
             "agent": [{"type": _cc("http://terminology.hl7.org/CodeSystem/provenance-participant-type", "assembler", "Assembler"),
@@ -302,7 +307,7 @@ class _Builder:
             "entity": [{"role": "source", "what": {"reference": r}} for r in obs_refs],
         })
         return {
-            "resourceType": "Bundle", "id": f"{self.pfx}bundle-{_slug(case.id)}",
+            "resourceType": "Bundle", "id": f"{self.pfx}bundle-{self.case_ns}",
             "meta": {"tag": [_coding(DIP_CS, "simulated" if self.sim else "observed", "Simulated" if self.sim else "Observed")]},
             "identifier": {"system": f"{IDS}:bundle-id", "value": f"{case.id}-{self.now:%Y%m%dT%H%M%S}"},
             "type": "collection", "timestamp": self.now.isoformat(), "entry": self.entries,

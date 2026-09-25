@@ -77,20 +77,29 @@ class Case:
         "advisory": {"open", "localizing", "localized", "handed_off", "fixed"},
         "notify_utility": {"localized"}, "dismiss": {"open", "localizing", "localized"},
         "fixed": {"handed_off"}, "follow_up": {"fixed"}, "verified": {"fixed"},
-        "close": {"verified", "dismissed", "handed_off", "fixed"},
+        "reopen": {"handed_off"},  # the utility could not confirm the entry point: the search goes on
+        "close": {"verified", "dismissed"},  # a fix is closed only after it was verified
         "lift_advisory": {"open", "localizing", "localized", "handed_off", "fixed", "verified", "closed", "dismissed"},
         "fhir_push": {"open", "localizing", "localized", "handed_off", "fixed", "verified", "closed", "dismissed"},
     }
-    NEEDS_APPROVER = {"advisory", "lift_advisory", "notify_utility", "dismiss", "fixed", "follow_up", "verified", "close"}
+    NEEDS_APPROVER = {"advisory", "lift_advisory", "notify_utility", "dismiss", "fixed", "follow_up", "verified",
+                      "reopen", "close"}
+    # Anyone can report, so citizen evidence alone may steer the search but never triggers a hand-off: at least
+    # one check by a trained volunteer or staff member is needed before a case counts as localized.
+    TRUSTED_ROLES = ("trained", "inspector")
     TERMINAL = {"closed", "dismissed", "verified"}
 
     def act(self, type_: str, approver: str | None, payload: dict[str, Any] | None = None,
-            at: datetime | None = None) -> Action:
-        """Human decisions, with an explicit transition table. Consequential actions require an approver."""
+            at: datetime | None = None, replay: bool = False) -> Action:
+        """Human decisions, with an explicit transition table. Consequential actions require an approver.
+        On `replay` (rebuilding a case from its event log) recorded decisions are trusted as the audit truth and
+        not re-checked against the model, so a parameter change can never hide a case that was handed off."""
         if type_ not in self.ALLOWED:
             raise ValueError(f"unknown action {type_}")
         if type_ in self.NEEDS_APPROVER and not (approver and approver.strip()):
             raise PermissionError(f"{type_} requires a human approver")
+        if replay:
+            return self._apply(type_, approver, payload or {}, at)
         if self.status not in self.ALLOWED[type_]:
             raise ValueError(f"{type_.replace('_', ' ')} is not possible while the case is {self.status.replace('_', ' ')}")
         payload = payload or {}
@@ -102,14 +111,19 @@ class Case:
             raise ValueError("an advisory is already published for this case")
         if type_ == "lift_advisory" and not self.advisory_active:
             raise ValueError("there is no published advisory to lift")
+        return self._apply(type_, approver, payload, at)
+
+    def _apply(self, type_: str, approver: str | None, payload: dict[str, Any], at: datetime | None) -> Action:
         snapshot = {"status_before": self.status, "p_harmful": round(self.belief.p_harmful(), 4),
                     "top_source": list(self.belief.top_source()), "model_version": __version__}
         a = Action(type=type_, at=at or datetime.now(timezone.utc), approver=approver,
                    payload={**(payload or {}), "seen": (payload or {}).get("seen", snapshot)})
         self.actions.append(a)
-        self._status = {"notify_utility": "handed_off", "fixed": "fixed", "verified": "verified",
+        self._status = {"notify_utility": "handed_off", "fixed": "fixed", "verified": "verified", "reopen": "localizing",
                         "close": "closed", "dismiss": "dismissed"}.get(type_, self._status)
-        if type_ == "follow_up" and not payload["clean"]:
+        if type_ == "reopen":
+            self._reopened_at = len(self.belief.observations)  # needs new evidence before it localizes again
+        if type_ == "follow_up" and not payload.get("clean"):
             self._status = "handed_off"  # the fix did not work: back to the utility
         return a
 
@@ -137,19 +151,25 @@ class Case:
 
     @property
     def advisory_active(self) -> bool:
-        """A published advisory that has not been lifted and whose case is still open to the public."""
+        """A published advisory stays up until a public-health officer lifts it, whatever happens to the case:
+        closing or dismissing an investigation is not a statement that the water is safe."""
         active = False
         for a in self.actions:
             if a.type == "advisory":
                 active = True
             elif a.type == "lift_advisory":
                 active = False
-        return active and self.status not in ("closed", "dismissed")
+        return active
+
+    @property
+    def corroborated(self) -> bool:
+        return any(o.role in self.TRUSTED_ROLES for o in self.belief.observations)
 
     @property
     def status(self) -> str:
         if self._status in ("open", "localizing") and self.belief.status() == "localized":
-            return "localized"
+            fresh = len(self.belief.observations) > getattr(self, "_reopened_at", -1)
+            return "localized" if self.corroborated and fresh else "localizing"
         return self._status
 
     # ---- explanations ------------------------------------------------------------
@@ -260,6 +280,8 @@ class Case:
             "p_harmful": round(p_harm, 4),
             "advisory_suggested": should_advise(p_harm, self.stakes, b.params),
             "advisory_active": self.advisory_active, "fix_confirmed_clean": self.fix_confirmed_clean,
+            "needs_trained_check": self.belief.status() == "localized" and not self.corroborated,
+            "dismiss_proposed": self.belief.status() == "dismiss_proposed",
             "stakes": round(self.stakes, 3),
             "top_source": {"id": b.top_source()[0], "label": labels[b.top_source()[0]], "p": b.top_source()[1]},
             "outside_or_unmapped": round(ms[OUTSIDE], 4), "diffuse": round(ms[NONE], 4),

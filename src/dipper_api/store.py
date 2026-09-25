@@ -91,7 +91,7 @@ class Store:
                     if type_ == "observation":
                         case.add(obs_from_dict(p))
                     else:
-                        case.act(p["type"], p["approver"], p["payload"], at=datetime.fromisoformat(p["at"]))
+                        case.act(p["type"], p["approver"], p["payload"], at=datetime.fromisoformat(p["at"]), replay=True)
             except Exception as exc:  # noqa: BLE001 - one bad case must not stop the service
                 log.error(json.dumps({"event": "case_quarantined", "case": cid, "error": str(exc)[:200]}))
                 continue

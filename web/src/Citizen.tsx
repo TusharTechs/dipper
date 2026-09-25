@@ -87,7 +87,9 @@ export default function Citizen() {
           try {
             const r = await api.signal(item)
             if (r.case_id && r.report_token) remember({ case_id: r.case_id, token: r.report_token, reach: item.reach_id, at: item.observed_at })
-          } catch (e) { if (!(e instanceof ApiError) || e.status >= 500) left.push(item) }
+          } catch (e) {  // keep it for later unless the server rejected the report itself (bad location or data)
+            if (!(e instanceof ApiError) || e.status >= 500 || e.status === 409 || e.status === 429) left.push(item)
+          }
         }
         writeQueue(left); setQueued(left.length); setRecent(readRecent())
       } finally { flushing = false }

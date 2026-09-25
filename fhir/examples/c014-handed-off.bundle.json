@@ -1,6 +1,6 @@
 {
   "resourceType": "Bundle",
-  "id": "SIM-bundle-C-014",
+  "id": "SIM-bundle-Ribeira-de-Coselhas-C-014",
   "meta": {
     "tag": [
       {
@@ -73,10 +73,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-pt-9108177386",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-Ribeira-de-Coselhas-pt-9108177386",
       "resource": {
         "resourceType": "Location",
-        "id": "SIM-loc-pt-9108177386",
+        "id": "SIM-loc-Ribeira-de-Coselhas-pt-9108177386",
         "meta": {
           "profile": [
             "http://hl7.eu/fhir/ig/oah/StructureDefinition/location-oah"
@@ -120,10 +120,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-001",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-Ribeira-de-Coselhas-C-014-001",
       "resource": {
         "resourceType": "Observation",
-        "id": "SIM-obs-001",
+        "id": "SIM-obs-Ribeira-de-Coselhas-C-014-001",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-citizen-observation"
@@ -170,7 +170,7 @@
           ]
         },
         "subject": {
-          "reference": "Location/SIM-loc-pt-9108177386"
+          "reference": "Location/SIM-loc-Ribeira-de-Coselhas-pt-9108177386"
         },
         "effectiveDateTime": "2026-09-18T08:10:00+01:00",
         "performer": [
@@ -212,10 +212,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-pt-9108177388",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-Ribeira-de-Coselhas-pt-9108177388",
       "resource": {
         "resourceType": "Location",
-        "id": "SIM-loc-pt-9108177388",
+        "id": "SIM-loc-Ribeira-de-Coselhas-pt-9108177388",
         "meta": {
           "profile": [
             "http://hl7.eu/fhir/ig/oah/StructureDefinition/location-oah"
@@ -259,10 +259,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-002",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-Ribeira-de-Coselhas-C-014-002",
       "resource": {
         "resourceType": "Observation",
-        "id": "SIM-obs-002",
+        "id": "SIM-obs-Ribeira-de-Coselhas-C-014-002",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-citizen-observation"
@@ -309,7 +309,7 @@
           ]
         },
         "subject": {
-          "reference": "Location/SIM-loc-pt-9108177388"
+          "reference": "Location/SIM-loc-Ribeira-de-Coselhas-pt-9108177388"
         },
         "effectiveDateTime": "2026-09-18T08:40:00+01:00",
         "performer": [
@@ -351,10 +351,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-pt-9108177390",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-Ribeira-de-Coselhas-pt-9108177390",
       "resource": {
         "resourceType": "Location",
-        "id": "SIM-loc-pt-9108177390",
+        "id": "SIM-loc-Ribeira-de-Coselhas-pt-9108177390",
         "meta": {
           "profile": [
             "http://hl7.eu/fhir/ig/oah/StructureDefinition/location-oah"
@@ -398,10 +398,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-003",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-Ribeira-de-Coselhas-C-014-003",
       "resource": {
         "resourceType": "Observation",
-        "id": "SIM-obs-003",
+        "id": "SIM-obs-Ribeira-de-Coselhas-C-014-003",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-citizen-observation"
@@ -448,7 +448,7 @@
           ]
         },
         "subject": {
-          "reference": "Location/SIM-loc-pt-9108177390"
+          "reference": "Location/SIM-loc-Ribeira-de-Coselhas-pt-9108177390"
         },
         "effectiveDateTime": "2026-09-18T09:05:00+01:00",
         "performer": [
@@ -490,10 +490,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-pt-9108196608",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-Ribeira-de-Coselhas-pt-9108196608",
       "resource": {
         "resourceType": "Location",
-        "id": "SIM-loc-pt-9108196608",
+        "id": "SIM-loc-Ribeira-de-Coselhas-pt-9108196608",
         "meta": {
           "profile": [
             "http://hl7.eu/fhir/ig/oah/StructureDefinition/location-oah"
@@ -537,10 +537,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-004",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-Ribeira-de-Coselhas-C-014-004",
       "resource": {
         "resourceType": "Observation",
-        "id": "SIM-obs-004",
+        "id": "SIM-obs-Ribeira-de-Coselhas-C-014-004",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-citizen-observation"
@@ -587,7 +587,7 @@
           ]
         },
         "subject": {
-          "reference": "Location/SIM-loc-pt-9108196608"
+          "reference": "Location/SIM-loc-Ribeira-de-Coselhas-pt-9108196608"
         },
         "effectiveDateTime": "2026-09-18T09:10:00+01:00",
         "performer": [
@@ -611,10 +611,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-pt-14002717503",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-Ribeira-de-Coselhas-pt-14002717503",
       "resource": {
         "resourceType": "Location",
-        "id": "SIM-loc-pt-14002717503",
+        "id": "SIM-loc-Ribeira-de-Coselhas-pt-14002717503",
         "meta": {
           "profile": [
             "http://hl7.eu/fhir/ig/oah/StructureDefinition/location-oah"
@@ -658,10 +658,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-005",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-Ribeira-de-Coselhas-C-014-005",
       "resource": {
         "resourceType": "Observation",
-        "id": "SIM-obs-005",
+        "id": "SIM-obs-Ribeira-de-Coselhas-C-014-005",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-citizen-observation"
@@ -708,7 +708,7 @@
           ]
         },
         "subject": {
-          "reference": "Location/SIM-loc-pt-14002717503"
+          "reference": "Location/SIM-loc-Ribeira-de-Coselhas-pt-14002717503"
         },
         "effectiveDateTime": "2026-09-18T09:35:00+01:00",
         "performer": [
@@ -732,10 +732,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-pt-9108177368",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-Ribeira-de-Coselhas-pt-9108177368",
       "resource": {
         "resourceType": "Location",
-        "id": "SIM-loc-pt-9108177368",
+        "id": "SIM-loc-Ribeira-de-Coselhas-pt-9108177368",
         "meta": {
           "profile": [
             "http://hl7.eu/fhir/ig/oah/StructureDefinition/location-oah"
@@ -779,10 +779,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-006",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-Ribeira-de-Coselhas-C-014-006",
       "resource": {
         "resourceType": "Observation",
-        "id": "SIM-obs-006",
+        "id": "SIM-obs-Ribeira-de-Coselhas-C-014-006",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-citizen-observation"
@@ -829,7 +829,7 @@
           ]
         },
         "subject": {
-          "reference": "Location/SIM-loc-pt-9108177368"
+          "reference": "Location/SIM-loc-Ribeira-de-Coselhas-pt-9108177368"
         },
         "effectiveDateTime": "2026-09-18T10:00:00+01:00",
         "performer": [
@@ -853,10 +853,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-pt-9108177375",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-Ribeira-de-Coselhas-pt-9108177375",
       "resource": {
         "resourceType": "Location",
-        "id": "SIM-loc-pt-9108177375",
+        "id": "SIM-loc-Ribeira-de-Coselhas-pt-9108177375",
         "meta": {
           "profile": [
             "http://hl7.eu/fhir/ig/oah/StructureDefinition/location-oah"
@@ -900,10 +900,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-007",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-Ribeira-de-Coselhas-C-014-007",
       "resource": {
         "resourceType": "Observation",
-        "id": "SIM-obs-007",
+        "id": "SIM-obs-Ribeira-de-Coselhas-C-014-007",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-citizen-observation"
@@ -950,7 +950,7 @@
           ]
         },
         "subject": {
-          "reference": "Location/SIM-loc-pt-9108177375"
+          "reference": "Location/SIM-loc-Ribeira-de-Coselhas-pt-9108177375"
         },
         "effectiveDateTime": "2026-09-18T10:25:00+01:00",
         "performer": [
@@ -974,10 +974,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-outfall-O9",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Location/SIM-loc-Ribeira-de-Coselhas-outfall-O9",
       "resource": {
         "resourceType": "Location",
-        "id": "SIM-loc-outfall-O9",
+        "id": "SIM-loc-Ribeira-de-Coselhas-outfall-O9",
         "meta": {
           "profile": [
             "http://hl7.eu/fhir/ig/oah/StructureDefinition/location-oah"
@@ -1021,10 +1021,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-008",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-Ribeira-de-Coselhas-C-014-008",
       "resource": {
         "resourceType": "Observation",
-        "id": "SIM-obs-008",
+        "id": "SIM-obs-Ribeira-de-Coselhas-C-014-008",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-citizen-observation"
@@ -1071,7 +1071,7 @@
           ]
         },
         "subject": {
-          "reference": "Location/SIM-loc-outfall-O9"
+          "reference": "Location/SIM-loc-Ribeira-de-Coselhas-outfall-O9"
         },
         "effectiveDateTime": "2026-09-18T10:50:00+01:00",
         "performer": [
@@ -1087,10 +1087,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-009",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Observation/SIM-obs-Ribeira-de-Coselhas-C-014-009",
       "resource": {
         "resourceType": "Observation",
-        "id": "SIM-obs-009",
+        "id": "SIM-obs-Ribeira-de-Coselhas-C-014-009",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-citizen-observation"
@@ -1137,7 +1137,7 @@
           ]
         },
         "subject": {
-          "reference": "Location/SIM-loc-outfall-O9"
+          "reference": "Location/SIM-loc-Ribeira-de-Coselhas-outfall-O9"
         },
         "effectiveDateTime": "2026-09-18T11:15:00+01:00",
         "performer": [
@@ -1180,10 +1180,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/DetectedIssue/SIM-case-C-014",
+      "fullUrl": "https://example.org/fhir/dipper-demo/DetectedIssue/SIM-case-Ribeira-de-Coselhas-C-014",
       "resource": {
         "resourceType": "DetectedIssue",
-        "id": "SIM-case-C-014",
+        "id": "SIM-case-Ribeira-de-Coselhas-C-014",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-source-case"
@@ -1223,7 +1223,7 @@
         "identifiedDateTime": "2026-09-18T08:10:00+01:00",
         "implicated": [
           {
-            "reference": "Location/SIM-loc-outfall-O9"
+            "reference": "Location/SIM-loc-Ribeira-de-Coselhas-outfall-O9"
           },
           {
             "reference": "Location/SIM-loc-reach-Ribeira-de-Coselhas"
@@ -1233,39 +1233,39 @@
           {
             "detail": [
               {
-                "reference": "Observation/SIM-obs-001"
+                "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-001"
               },
               {
-                "reference": "Observation/SIM-obs-002"
+                "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-002"
               },
               {
-                "reference": "Observation/SIM-obs-003"
+                "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-003"
               },
               {
-                "reference": "Observation/SIM-obs-004"
+                "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-004"
               },
               {
-                "reference": "Observation/SIM-obs-005"
+                "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-005"
               },
               {
-                "reference": "Observation/SIM-obs-006"
+                "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-006"
               },
               {
-                "reference": "Observation/SIM-obs-007"
+                "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-007"
               },
               {
-                "reference": "Observation/SIM-obs-008"
+                "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-008"
               },
               {
-                "reference": "Observation/SIM-obs-009"
+                "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-009"
               }
             ]
           }
         ],
-        "detail": "Leading explanation: Foul sewage (misconnection or leaking sewer) (99%). Most likely entry point: O-9 (94%). Case status: handed_off. Model estimate from citizen and field evidence; pathogens not measured unless a lab result is listed.",
+        "detail": "Leading explanation: Foul sewage (misconnection or leaking sewer) (98%). Most likely entry point: O-9 (90%). Case status: handed_off. Model estimate from citizen and field evidence; pathogens not measured unless a lab result is listed.",
         "text": {
           "status": "generated",
-          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>DetectedIssue</b> Suspected point-source pollution · Leading explanation: Foul sewage (misconnection or leaking sewer) (99%). Most likely entry point: O-9 (94%). Case status: handed_off. Model estimate from citizen and field evidence; pathogens not measured unless a lab result is listed. · final</p></div>"
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>DetectedIssue</b> Suspected point-source pollution · Leading explanation: Foul sewage (misconnection or leaking sewer) (98%). Most likely entry point: O-9 (90%). Case status: handed_off. Model estimate from citizen and field evidence; pathogens not measured unless a lab result is listed. · final</p></div>"
         }
       }
     },
@@ -1320,10 +1320,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/RiskAssessment/SIM-risk-C-014",
+      "fullUrl": "https://example.org/fhir/dipper-demo/RiskAssessment/SIM-risk-Ribeira-de-Coselhas-C-014",
       "resource": {
         "resourceType": "RiskAssessment",
-        "id": "SIM-risk-C-014",
+        "id": "SIM-risk-Ribeira-de-Coselhas-C-014",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-exposure-risk"
@@ -1356,34 +1356,34 @@
         },
         "basis": [
           {
-            "reference": "DetectedIssue/SIM-case-C-014"
+            "reference": "DetectedIssue/SIM-case-Ribeira-de-Coselhas-C-014"
           },
           {
-            "reference": "Observation/SIM-obs-001"
+            "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-001"
           },
           {
-            "reference": "Observation/SIM-obs-002"
+            "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-002"
           },
           {
-            "reference": "Observation/SIM-obs-003"
+            "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-003"
           },
           {
-            "reference": "Observation/SIM-obs-004"
+            "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-004"
           },
           {
-            "reference": "Observation/SIM-obs-005"
+            "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-005"
           },
           {
-            "reference": "Observation/SIM-obs-006"
+            "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-006"
           },
           {
-            "reference": "Observation/SIM-obs-007"
+            "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-007"
           },
           {
-            "reference": "Observation/SIM-obs-008"
+            "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-008"
           },
           {
-            "reference": "Observation/SIM-obs-009"
+            "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-009"
           }
         ],
         "prediction": [
@@ -1397,7 +1397,7 @@
                 }
               ]
             },
-            "probabilityDecimal": 0.847,
+            "probabilityDecimal": 0.846,
             "qualitativeRisk": {
               "coding": [
                 {
@@ -1407,20 +1407,20 @@
                 }
               ]
             },
-            "rationale": "0.0 mm rain in 48 h, 12 dry days, max 29 °C. Foul sewage (misconnection or leaking sewer) 99%; entry O-9 94%. Contact places downstream: Penedo da Meditação (85%); Escola Básica de Coselhas (85%). Environmental exposure estimate only; no pathogen confirmed."
+            "rationale": "0.0 mm rain in 48 h, 12 dry days, max 29 °C. Foul sewage (misconnection or leaking sewer) 98%; entry O-9 90%. Contact places downstream: Penedo da Meditação (85%); Escola Básica de Coselhas (85%). Environmental exposure estimate only; no pathogen confirmed."
           }
         ],
         "text": {
           "status": "generated",
-          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>RiskAssessment</b> preliminary · 0.0 mm rain in 48 h, 12 dry days, max 29 °C. Foul sewage (misconnection or leaking sewer) 99%; entry O-9 94%. Contact places downstream: Penedo da Meditação (85%); Escola Básica de Coselhas (85%). Environmental exposure estimate only; no pathogen confirmed.</p></div>"
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>RiskAssessment</b> preliminary · 0.0 mm rain in 48 h, 12 dry days, max 29 °C. Foul sewage (misconnection or leaking sewer) 98%; entry O-9 90%. Contact places downstream: Penedo da Meditação (85%); Escola Básica de Coselhas (85%). Environmental exposure estimate only; no pathogen confirmed.</p></div>"
         }
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/ServiceRequest/SIM-confirm-C-014",
+      "fullUrl": "https://example.org/fhir/dipper-demo/ServiceRequest/SIM-confirm-Ribeira-de-Coselhas-C-014",
       "resource": {
         "resourceType": "ServiceRequest",
-        "id": "SIM-confirm-C-014",
+        "id": "SIM-confirm-Ribeira-de-Coselhas-C-014",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-confirmation-request"
@@ -1452,7 +1452,7 @@
           ]
         },
         "subject": {
-          "reference": "Location/SIM-loc-outfall-O9"
+          "reference": "Location/SIM-loc-Ribeira-de-Coselhas-outfall-O9"
         },
         "authoredOn": "2026-09-18T12:00:00+00:00",
         "requester": {
@@ -1460,15 +1460,15 @@
         },
         "reasonCode": [
           {
-            "text": "O-9 holds 94% of the probability; confirm with a dye test, smoke test or CCTV before repair."
+            "text": "O-9 holds 90% of the probability; confirm with a dye test, smoke test or CCTV before repair."
           }
         ],
         "supportingInfo": [
           {
-            "reference": "DetectedIssue/SIM-case-C-014"
+            "reference": "DetectedIssue/SIM-case-Ribeira-de-Coselhas-C-014"
           },
           {
-            "reference": "RiskAssessment/SIM-risk-C-014"
+            "reference": "RiskAssessment/SIM-risk-Ribeira-de-Coselhas-C-014"
           }
         ],
         "text": {
@@ -1478,10 +1478,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Task/SIM-task-C-014-confirm",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Task/SIM-task-Ribeira-de-Coselhas-C-014-confirm",
       "resource": {
         "resourceType": "Task",
-        "id": "SIM-task-C-014-confirm",
+        "id": "SIM-task-Ribeira-de-Coselhas-C-014-confirm",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-field-task"
@@ -1505,11 +1505,11 @@
         "intent": "order",
         "basedOn": [
           {
-            "reference": "ServiceRequest/SIM-confirm-C-014"
+            "reference": "ServiceRequest/SIM-confirm-Ribeira-de-Coselhas-C-014"
           }
         ],
         "for": {
-          "reference": "Location/SIM-loc-outfall-O9"
+          "reference": "Location/SIM-loc-Ribeira-de-Coselhas-outfall-O9"
         },
         "authoredOn": "2026-09-18T12:00:00+00:00",
         "businessStatus": {
@@ -1523,10 +1523,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Flag/SIM-flag-C-014",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Flag/SIM-flag-Ribeira-de-Coselhas-C-014",
       "resource": {
         "resourceType": "Flag",
-        "id": "SIM-flag-C-014",
+        "id": "SIM-flag-Ribeira-de-Coselhas-C-014",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-site-flag"
@@ -1560,7 +1560,7 @@
           "reference": "Location/SIM-loc-reach-Ribeira-de-Coselhas"
         },
         "period": {
-          "start": "2026-09-25T12:43:13.569849+00:00"
+          "start": "2026-09-25T13:18:47.925535+00:00"
         },
         "author": {
           "reference": "Device/SIM-dev-dipper-engine"
@@ -1572,10 +1572,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Communication/SIM-advisory-C-014-1",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Communication/SIM-advisory-Ribeira-de-Coselhas-C-014-1",
       "resource": {
         "resourceType": "Communication",
-        "id": "SIM-advisory-C-014-1",
+        "id": "SIM-advisory-Ribeira-de-Coselhas-C-014-1",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-advisory"
@@ -1601,17 +1601,16 @@
         },
         "about": [
           {
-            "reference": "Flag/SIM-flag-C-014"
+            "reference": "Flag/SIM-flag-Ribeira-de-Coselhas-C-014"
           },
           {
-            "reference": "RiskAssessment/SIM-risk-C-014"
+            "reference": "RiskAssessment/SIM-risk-Ribeira-de-Coselhas-C-014"
           }
         ],
-        "sent": "2026-09-25T12:43:13.569849+00:00",
+        "sent": "2026-09-25T13:18:47.925535+00:00",
         "sender": {
           "display": "Approved by staff"
         },
-        "language": "pt",
         "payload": [
           {
             "contentString": "Evite o contacto com a água e mantenha os cães fora da Ribeira de Coselhas, a jusante do troço afetado, até novo aviso. Motivo: provável descarga de esgoto, ainda sem confirmação laboratorial."
@@ -1627,10 +1626,10 @@
       }
     },
     {
-      "fullUrl": "https://example.org/fhir/dipper-demo/Provenance/SIM-prov-C-014",
+      "fullUrl": "https://example.org/fhir/dipper-demo/Provenance/SIM-prov-Ribeira-de-Coselhas-C-014",
       "resource": {
         "resourceType": "Provenance",
-        "id": "SIM-prov-C-014",
+        "id": "SIM-prov-Ribeira-de-Coselhas-C-014",
         "meta": {
           "profile": [
             "https://example.org/fhir/dipper/StructureDefinition/dipper-engine-provenance"
@@ -1652,13 +1651,13 @@
         },
         "target": [
           {
-            "reference": "DetectedIssue/SIM-case-C-014"
+            "reference": "DetectedIssue/SIM-case-Ribeira-de-Coselhas-C-014"
           },
           {
-            "reference": "RiskAssessment/SIM-risk-C-014"
+            "reference": "RiskAssessment/SIM-risk-Ribeira-de-Coselhas-C-014"
           },
           {
-            "reference": "ServiceRequest/SIM-confirm-C-014"
+            "reference": "ServiceRequest/SIM-confirm-Ribeira-de-Coselhas-C-014"
           }
         ],
         "recorded": "2026-09-18T12:00:00+00:00",
@@ -1682,55 +1681,55 @@
           {
             "role": "source",
             "what": {
-              "reference": "Observation/SIM-obs-001"
+              "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-001"
             }
           },
           {
             "role": "source",
             "what": {
-              "reference": "Observation/SIM-obs-002"
+              "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-002"
             }
           },
           {
             "role": "source",
             "what": {
-              "reference": "Observation/SIM-obs-003"
+              "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-003"
             }
           },
           {
             "role": "source",
             "what": {
-              "reference": "Observation/SIM-obs-004"
+              "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-004"
             }
           },
           {
             "role": "source",
             "what": {
-              "reference": "Observation/SIM-obs-005"
+              "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-005"
             }
           },
           {
             "role": "source",
             "what": {
-              "reference": "Observation/SIM-obs-006"
+              "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-006"
             }
           },
           {
             "role": "source",
             "what": {
-              "reference": "Observation/SIM-obs-007"
+              "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-007"
             }
           },
           {
             "role": "source",
             "what": {
-              "reference": "Observation/SIM-obs-008"
+              "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-008"
             }
           },
           {
             "role": "source",
             "what": {
-              "reference": "Observation/SIM-obs-009"
+              "reference": "Observation/SIM-obs-Ribeira-de-Coselhas-C-014-009"
             }
           }
         ],

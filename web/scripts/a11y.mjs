@@ -35,6 +35,16 @@ for (const [width, height, name] of [[1440, 900, 'desktop'], [375, 812, 'phone']
   for (const route of ['citizen', 'public', 'bench', 'about']) {
     await page.goto(`${BASE}/#/${route}`, { waitUntil: 'networkidle0' }); await sleep(1200); await audit(`${name} · ${route}`)
   }
+  // the citizen's thank-you and mission screen, after a real report on the second stream
+  await page.goto(`${BASE}/#/citizen`, { waitUntil: 'networkidle0' }); await sleep(800)
+  await page.evaluate(() => { const r = document.getElementById('reach'); const o = r.options[1]
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(r, o.value); r.dispatchEvent(new Event('change', { bubbles: true })) })
+  await sleep(2000)
+  await page.evaluate(() => { const s = document.getElementById('landmark'); const o = s.options[3]
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, o.value); s.dispatchEvent(new Event('change', { bubbles: true })) })
+  await page.evaluate(() => document.querySelector('.toggles button')?.click()); await sleep(200)
+  await page.evaluate(() => document.querySelector('button.primary.wide')?.click()); await sleep(3500)
+  await audit(`${name} · citizen thank-you and mission`)
   await page.goto(`${BASE}/#/ops`, { waitUntil: 'networkidle0' })
   await page.evaluate(() => sessionStorage.clear()); await page.reload({ waitUntil: 'networkidle0' }); await sleep(500)
   await audit(`${name} · sign-in`)

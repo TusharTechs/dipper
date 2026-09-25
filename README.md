@@ -3,7 +3,7 @@
 <h1 align="center">Dipper</h1>
 
 **Find urban stream pollution at its source.** Citizens see sewage first. Dipper turns their reports into a
-search that finds the polluting pipe in a few checks. It tells the public what is known, and hands the case to
+search that narrows down the polluting pipe with far fewer checks than walking the bank. It tells the public what is known, and hands the case to
 utilities and health systems in FHIR.
 
 Built for the OneAquaHealth IEEE Global Hackathon 2026. Primary track: 3, AI-Supported Assessment. Also
@@ -13,8 +13,8 @@ covers track 7, FHIR, and track 6.
 > weather (Open-Meteo). The demo's candidate outfalls, citizen reports and check results are **simulated**
 > and labelled that way on screen. SourceBench is a **simulation**. See [DATA.md](DATA.md).
 
-**Why "Dipper"?** The white-throated dipper is a small songbird of fast, clean streams
-and walks underwater to feed. Ecologists use it as a living indicator of stream health. The logo is a dipper
+**Why "Dipper"?** The white-throated dipper is a small songbird of fast, clean streams that
+walks underwater to feed. Ecologists use it as a living indicator of stream health. The logo is a dipper
 shaped like a map pin, dipping into the water: a clean-stream sentinel that points to where the pollution
 enters.
 
@@ -168,29 +168,33 @@ flowchart TB
   style out fill:none,stroke:#B9C8C4,color:#0F1E24
 ```
 
-**Case lifecycle.** Every transition needs a signed-in person with the right role. A fix counts as verified
-only after a clean follow-up check.
+**Case lifecycle.** Every transition needs a signed-in person with the right role. Citizen evidence can steer
+the search but never hand a case off on its own. A fix counts as verified only after a clean follow-up
+check, and only a verified or dismissed case can be closed. If the utility cannot confirm the entry point,
+that is recorded as evidence and the search resumes.
 
 ```mermaid
 stateDiagram-v2
   direction LR
-  [*] --> open: first citizen report
+  [*] --> open: first report of pollution
   open --> localizing: more evidence
-  localizing --> localized: one entry point ≥ threshold
-  localized --> handed_off: investigator hands off
+  localizing --> localized: one entry point ≥ threshold<br/>and a trained or staff check
+  localized --> handed_off: hand off
+  handed_off --> localizing: not confirmed
   handed_off --> fixed: utility reports the fix
   fixed --> handed_off: follow-up still polluted
-  fixed --> verified: follow-up clean, then verify
+  fixed --> verified: clean follow-up, then verify
   verified --> closed
-  open --> dismissed: no source
-  localizing --> dismissed: no source
-  localized --> dismissed: no source
+  open --> dismissed: no pollution source
+  localizing --> dismissed: no pollution source
+  localized --> dismissed: no pollution source
+  dismissed --> closed
   closed --> [*]
-  dismissed --> [*]
   note right of handed_off
-    Advisory: drafted by the engine,
-    approved or lifted only by
-    a public-health officer
+    Advisories are separate: drafted by the
+    engine, published and lifted only by a
+    public-health officer. Closing a case
+    does not lift an advisory.
   end note
 ```
 
@@ -234,7 +238,7 @@ approve the advisory. Last, open **Advisories**. The citizen flow is at **Report
 Development without Docker:
 
 ```bash
-uv sync && uv run pytest                                           # 79 tests
+uv sync && uv run pytest                                           # 82 tests
 DIPPER_DEMO=1 uv run uvicorn dipper_api.main:app --reload          # API at :8000, docs at /docs (demo only)
 npm --prefix web install && npm --prefix web run dev               # UI at http://localhost:3000
 uv run python -m dipper_engine.sim --trials 40                     # SourceBench (simulation)
@@ -256,7 +260,7 @@ user, has a health check on `/api/ready`, and keeps all state in the `/app/state
 | `DIPPER_DB`, `DIPPER_MEDIA`, `DIPPER_CACHE` | Event store, redacted photos and downloaded weather (default: under `/app/state`) |
 | `DIPPER_MEDIA_DAYS` | Photo retention in days (default 30), enforced at startup and every hour |
 | `DIPPER_PEPPER` | Secret for pseudonymising citizen device ids. Generated and stored on first run if unset. |
-| `DIPPER_PROXY_HOPS` | Number of reverse proxies in front of the app, so rate limits see the real client |
+| `DIPPER_PROXY_HOPS`, `DIPPER_TRUSTED_PROXIES` | Reverse proxies in front of the app and their addresses (default loopback). Forwarded headers are read only from those addresses. |
 | `ANTHROPIC_API_KEY` or `GEMINI_API_KEY`, `DIPPER_VISION_PROVIDER` | Photo reading (optional; reports work without it) |
 | `FHIR_BASE_URL`, `FHIR_TOKEN` | FHIR server for case hand-off |
 | `PORT` | Listening port (default 8000) |
@@ -279,6 +283,11 @@ The roles are `trained` (volunteer checks), `inspector` (investigation and hand-
 - **Only the reporter can follow a report.** Each report returns a private token, sent in a header and never
   in a URL. Only that token opens the case summary and answers its missions, once per mission. Case ids alone
   are guessable; the token is not.
+- **Hard to game.** Anyone can report, so public evidence is bounded:
+  - A citizen can answer only the mission they were given, once.
+  - Repeated public checks of one spot within a discharge burst count with diminishing weight.
+  - A case needs at least one trained or staff check before it can be handed off.
+  - Staff checks are always recorded under the signed-in person and their real role.
 - **A clean report is evidence, not a case.** "The water looks clean" becomes a clean look for an open case
   and never opens a pollution case by itself.
 - **Minimal location sharing.** A mission is chosen from where the stored report was snapped to the stream,
@@ -293,7 +302,9 @@ The roles are `trained` (volunteer checks), `inspector` (investigation and hand-
   - API docs and schema are served only in demo mode (or with `DIPPER_DOCS=1`).
   - HSTS only over HTTPS; the public weather endpoint is snapped to mapped streams and the last 60 days.
   - Rate limits on public endpoints, including mission answers. They hold behind a reverse proxy: forwarded
-    addresses are trusted only from declared proxies (tested through the production `/api` mount).
+    addresses are read only from declared proxy addresses (tested through the production `/api` mount).
+  - FHIR resource ids are namespaced by stream and case, so bundles from different cases or cities never
+    overwrite each other on a shared FHIR server.
   - Content Security Policy and security headers.
   - Request ids.
   - JSON logs without IP addresses.
@@ -338,7 +349,7 @@ gets the same posteriors.
 ## Accessibility and usability
 
 - **Automated checks:** axe-core (WCAG 2.2 AA and best practice) reports **0 violations** on every screen
-  and case tab, at 1440, 375 and 320 px. It also checks for horizontal scrolling. Reproduce it with
+  and case tab, including the citizen thank-you and mission screen, at 1440, 375 and 320 px. It also checks for horizontal scrolling. Reproduce it with
   `npm --prefix web run a11y`; CI runs it on every push.
 - **Keyboard and screen readers:**
   - Skip link, landmarks and one `h1` per screen.
@@ -422,7 +433,7 @@ docs/model-card.md   every parameter and its rationale
 
 | Built and tested | Next, with a pilot partner |
 |---|---|
-| Engine, recommender, SourceBench, replay; 79 tests; CI | Real outfall inventories instead of synthetic candidates |
+| Engine, recommender, SourceBench, replay; 82 tests; CI | Real outfall inventories instead of synthetic candidates |
 | Staff roles and approvals, audit trail, public advisories | Expert review of likelihoods; lab calibration |
 | FHIR on the OAH IG, validated and pushed | Overflow-telemetry and sensor feeds as evidence |
 | Photo pipeline, evaluated on 35 Commons photos ([data/eval](data/eval/README.md)) | Number-plate redaction; expert-labelled photo set |

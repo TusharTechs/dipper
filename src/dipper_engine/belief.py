@@ -262,6 +262,8 @@ class Belief:
         lik = np.clip(self.likelihood(obs), 1e-12, None)
         if obs.kind == "report":
             lik = lik ** self._report_exponent(obs)
+        elif obs.role == "citizen" and obs.observer is not None:
+            lik = lik ** self._repeat_exponent(obs)
         lik = self._robust(lik, before)
         h_before, harm_before = self.location_entropy(before), float(before[self._harm].sum())
         hb, nb = before[self._harm].sum(), before[~self._harm].sum()
@@ -303,6 +305,18 @@ class Belief:
         k = sum(1 for o in self.observations if o.kind == "report" and
                 haversine_m(me.lat, me.lon, self.graph.nodes[o.node_id].lat, self.graph.nodes[o.node_id].lon)
                 <= self.params.report_cluster_m)
+        return 1.0 / (1.0 + self.params.report_temper * k)
+
+    def _repeat_exponent(self, obs: Observation) -> float:
+        """Temper repeated public checks of the same spot within one burst window. They come from anonymous
+        devices (the API always records a pseudonymous observer), mostly re-observe the same discharge state, and
+        anyone can send them, so the tenth "polluted" at one outfall must not weigh ten times. SourceBench's
+        simulated volunteers (no observer id) are a coordinated team and are not tempered."""
+        window = self.params.persist_window_h * 3600
+        k = sum(1 for o in self.observations if o.role == "citizen" and o.observer is not None and o.kind == obs.kind
+                and o.node_id == obs.node_id and o.candidate_id == obs.candidate_id
+                and (obs.observed_at is None or o.observed_at is None
+                     or abs((obs.observed_at - o.observed_at).total_seconds()) <= window))
         return 1.0 / (1.0 + self.params.report_temper * k)
 
     def _robust(self, lik: np.ndarray, p: np.ndarray) -> np.ndarray:

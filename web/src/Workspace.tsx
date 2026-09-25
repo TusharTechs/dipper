@@ -50,6 +50,7 @@ export default function Workspace({ caseId }: { caseId: string }) {
     if (n >= 0) { e.preventDefault(); setTab(TABS[n].id); tabRefs.current[TABS[n].id]?.focus() }
   }
 
+  const [confirmDismiss, setConfirmDismiss] = useState(false)
   if (error && !view) return <div className="page"><p className="error" role="alert">{error}</p><a href="#/ops">Back to the case queue</a></div>
   if (!view) return <div className="page"><p className="muted" role="status">Loading case…</p></div>
 
@@ -75,8 +76,18 @@ export default function Workspace({ caseId }: { caseId: string }) {
           {inspector && view.status === 'localized' && (
             <button className="primary" disabled={busy} onClick={() => run(() => api.action(view.id, 'notify_utility'),
               (v) => `Case handed to the utility. ${summary(v)}`)}>Hand off to utility</button>)}
-          {inspector && view.status === 'handed_off' && (
-            <button disabled={busy} onClick={() => run(() => api.action(view.id, 'fixed'), () => 'Marked as fixed')}>Mark fixed</button>)}
+          {inspector && view.status === 'handed_off' && <>
+            <button disabled={busy} onClick={() => run(() => api.action(view.id, 'reopen', { note: 'the utility could not confirm the entry point' }),
+              (v) => `Search reopened: ${view.top_source.label} was not confirmed. ${summary(v)}`)}>Not confirmed · reopen</button>
+            <button disabled={busy} onClick={() => run(() => api.action(view.id, 'fixed'), () => 'Marked as fixed')}>Mark fixed</button>
+          </>}
+          {inspector && ['verified', 'dismissed'].includes(view.status) && (
+            <button disabled={busy} onClick={() => run(() => api.action(view.id, 'close'), () => 'Case closed')}>Close case</button>)}
+          {inspector && ['open', 'localizing', 'localized'].includes(view.status) && (confirmDismiss
+            ? <span className="row"><button className="warn" disabled={busy} onClick={() => { setConfirmDismiss(false)
+                run(() => api.action(view.id, 'dismiss', { note: 'no pollution source found' }), () => 'Case dismissed') }}>Confirm dismiss</button>
+                <button className="linkish" onClick={() => setConfirmDismiss(false)}>Keep searching</button></span>
+            : <button className={view.dismiss_proposed ? 'warn' : ''} disabled={busy} onClick={() => setConfirmDismiss(true)}>Dismiss…</button>)}
           {inspector && view.status === 'fixed' && view.fix_confirmed_clean && (
             <button className="primary" disabled={busy} onClick={() => run(() => api.action(view.id, 'verified'), () => 'Fix verified')}>Verify fix</button>)}
         </div>
@@ -93,6 +104,11 @@ export default function Workspace({ caseId }: { caseId: string }) {
           </div>
           <p className="muted small">A fix counts as verified only after a clean follow-up. Follow-ups are kept apart from the source search, which explains the discharge that was found.</p>
         </section>)}
+      {view.needs_trained_check && ['open', 'localizing'].includes(view.status) && (
+        <p className="note bar" role="note">{view.top_source.label} holds {pct(view.top_source.p)} of the probability, but all evidence so far
+          comes from the public. One check by a trained volunteer or staff member is needed before hand-off.</p>)}
+      {view.dismiss_proposed && ['open', 'localizing'].includes(view.status) && (
+        <p className="note bar" role="note">The evidence points to a natural or benign cause, not a pollution source. Consider dismissing the case.</p>)}
       {error && <p className="error bar" role="alert">{error}</p>}
 
       <div className="tabs" role="tablist" aria-label="Case views">

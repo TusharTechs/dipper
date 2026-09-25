@@ -30,7 +30,8 @@ export interface AdvisoryDraft {
 export interface CaseView {
   id: string; reach: string; city: string; status: string; opened_at: string; simulated?: boolean
   context: { regime: string; summary: string; rain_48h_mm: number | null; tmax_c: number | null; dry_days: number | null }
-  hypotheses: Hypothesis[]; p_harmful: number; advisory_suggested: boolean; advisory_active: boolean; fix_confirmed_clean: boolean; stakes: number
+  hypotheses: Hypothesis[]; p_harmful: number; advisory_suggested: boolean; advisory_active: boolean; fix_confirmed_clean: boolean
+  needs_trained_check: boolean; dismiss_proposed: boolean; stakes: number
   top_source: { id: string; label: string; p: number }; outside_or_unmapped: number; diffuse: number
   sources: Source[]; ribbon: RibbonPoint[]; ledger: LedgerEntry[]; observations: ObservationView[]
   unknowns: string[]; exposure: Exposure[]; recommendations: Recommendation[]; actions: Action[]

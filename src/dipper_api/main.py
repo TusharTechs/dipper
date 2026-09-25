@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import os
@@ -162,15 +163,28 @@ def _limit_for(method: str, path: str) -> tuple[str, tuple[int, int]] | None:
         return (path, lim) if lim else None
     return None
 _hits: dict[tuple[str, str], deque] = defaultdict(deque)
-# Number of reverse proxies in front of the app. X-Forwarded-For is client-controlled, so it is only used
-# when a proxy is declared, and then only the entry that proxy appended (counted from the right).
+# Reverse proxies in front of the app. X-Forwarded-For and X-Forwarded-Proto are client-controlled, so they
+# are read only when the connection comes from a declared proxy address, and then only the entries those
+# proxies appended (counted from the right).
 PROXY_HOPS = int(os.getenv("DIPPER_PROXY_HOPS", "0"))
+TRUSTED_PROXIES = [ipaddress.ip_network(n.strip(), strict=False)
+                   for n in os.getenv("DIPPER_TRUSTED_PROXIES", "127.0.0.1/32,::1/128").split(",") if n.strip()]
+
+
+def _from_proxy(request: Request) -> bool:
+    if not PROXY_HOPS or not request.client:
+        return False
+    try:
+        peer = ipaddress.ip_address(request.client.host)
+    except ValueError:
+        return False
+    return any(peer in net for net in TRUSTED_PROXIES)
 
 
 def _client_key(request: Request) -> str:
     ip = request.client.host if request.client else "unknown"
     xff = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
-    if PROXY_HOPS and xff:
+    if xff and _from_proxy(request):
         ip = xff[-PROXY_HOPS] if len(xff) >= PROXY_HOPS else xff[0]
     return hashlib.sha256(ip.encode()).hexdigest()[:16]  # never keep raw IPs
 
@@ -283,8 +297,11 @@ def _new_case(reach_id: str, ctx: Context, when: datetime) -> Case:
 
 
 def _open_case_on(reach_id: str, when: datetime) -> Case | None:
+    # A case with the utility (or just fixed) is still the live investigation for this stream: new reports are
+    # follow-up evidence there, not a duplicate case.
     open_cases = [c for c in _cases.values() if _reach_of.get(c.id) == reach_id and c.id not in _scenario_truth
-                  and c.status in ("open", "localizing", "localized") and when - _last_activity(c) <= CASE_WINDOW]
+                  and c.status in ("open", "localizing", "localized", "handed_off", "fixed")
+                  and when - _last_activity(c) <= CASE_WINDOW]
     return max(open_cases, key=_last_activity) if open_cases else None
 
 
@@ -348,10 +365,10 @@ class SignalIn(BaseModel):
 
 class CheckIn(BaseModel):
     check_type: Literal["instream_look", "outfall_look", "ammonium_strip", "lab_ecoli"]
-    positive: bool
+    positive: StrictBool
     node_id: str | None = Field(None, max_length=40)
     candidate_id: str | None = Field(None, max_length=40)
-    observer: str | None = Field(None, max_length=64, pattern=r"^[A-Za-z0-9_.:-]*$")
+    # No observer field: a staff check is always recorded under the signed-in person.
 
 
 class CitizenCheckIn(BaseModel):
@@ -361,7 +378,7 @@ class CitizenCheckIn(BaseModel):
 
 class ActionIn(BaseModel):
     type: Literal["dispatch", "lab_request", "notify_utility", "advisory", "lift_advisory", "dismiss", "fixed",
-                  "follow_up", "verified", "close"]
+                  "follow_up", "verified", "reopen", "close"]
     note: str | None = Field(None, max_length=500, description="Optional reason, stored in the audit trail")
     clean: StrictBool | None = Field(None, description="follow_up only: was the source clean after the fix?")
 
@@ -377,7 +394,7 @@ class SimIn(BaseModel):
     seed: int = 1
 
 
-ACTION_ROLE = {"advisory": "public_health", "lift_advisory": "public_health", "follow_up": "inspector",
+ACTION_ROLE = {"advisory": "public_health", "lift_advisory": "public_health", "follow_up": "inspector", "reopen": "inspector",
                "notify_utility": "inspector", "dispatch": "inspector",
                "lab_request": "inspector", "dismiss": "inspector", "fixed": "inspector", "verified": "inspector",
                "close": "inspector"}
@@ -643,13 +660,13 @@ def citizen_case(case_id: str, x_report_token: str | None = Header(None)) -> dic
 
 @app.post("/v1/citizen/cases/{case_id}/checks")
 def citizen_check(case_id: str, body: CitizenCheckIn, x_report_token: str | None = Header(None)) -> dict:
-    """The reporting citizen answers one of the case's current citizen missions, once."""
+    """The reporting citizen answers the mission they were given (and only that one), once."""
     with _locked_case(case_id) as c:
         idx, report = _report_for(c, x_report_token)
         answerer = _answerer(c, idx, report)
         before = c.belief.location_entropy()
-        mission = next((r for r in _missions(c) if r.check.key() == body.mission_key), None)
-        if mission is None:
+        mission, _ = _pick_mission(c, report)
+        if mission is None or mission.check.key() != body.mission_key:
             raise HTTPException(409, "this mission is no longer open; refresh to get a new one")
         if _answered(c, answerer, body.mission_key):
             raise HTTPException(409, "you already answered this mission")
@@ -664,10 +681,12 @@ def public_advisories() -> list[dict]:
     """Published advisories only: reach, affected stretch (downstream of the likely entry), wording. No outfalls."""
     out = []
     with _lock:
-        for c in _cases.values():
-            adv = [a for a in c.actions if a.type == "advisory"]
+        cases = list(_cases.values())
+    for c in cases:
+        with _case_lock(c.id):
             if not c.advisory_active:
                 continue
+            adv = [a for a in c.actions if a.type == "advisory"]
             top, _ = c.belief.top_source()
             g = c.graph
             start = g.candidate(top).node_id if top not in (OUTSIDE, NONE) else min(
@@ -761,11 +780,11 @@ def post_check(case_id: str, body: CheckIn, user: User = Depends(require_staff))
     need = CHECK_ROLE[body.check_type]
     if need != "citizen" and not user.can(need):
         raise HTTPException(403, f"{body.check_type.replace('_', ' ')} needs the {need} role")
-    role = "inspector" if user.can("inspector") else "trained"
+    role = "inspector" if user.can("inspector") else "trained" if user.can("trained") else "citizen"
     with _locked_case(case_id) as c:
         try:
             _add(c, Observation(body.check_type, body.positive, node_id=body.node_id, candidate_id=body.candidate_id,
-                                role=role, observed_at=datetime.now(timezone.utc), observer=body.observer or user.id))
+                                role=role, observed_at=datetime.now(timezone.utc), observer=user.id))
         except (ValueError, KeyError) as exc:
             raise HTTPException(422, f"invalid check: {exc}") from exc
         return c.view()
@@ -778,10 +797,19 @@ def post_action(case_id: str, body: ActionIn, user: User = Depends(require_staff
         raise HTTPException(403, f"{body.type.replace('_', ' ')} needs the {need.replace('_', ' ')} role")
     with _locked_case(case_id) as c:
         if body.type == "notify_utility" and c.status != "localized":
-            raise HTTPException(409, "hand-off is available once one entry point reaches the localization threshold")
+            raise HTTPException(409, "hand-off needs one entry point above the localization threshold and at least "
+                                     "one check by a trained volunteer or staff member")
         payload = ({"note": body.note} if body.note else {}) | (
             {"text": c.advisory_draft()["text"]} if body.type == "advisory" else {}) | (
             {"clean": body.clean} if body.type == "follow_up" else {})
+        if body.type == "reopen" and c.status == "handed_off":
+            # The utility could not confirm the entry point: that is evidence against it, recorded before the
+            # search resumes, so the case does not simply point at the same outfall again.
+            top, _ = c.belief.top_source()
+            if top not in (OUTSIDE, NONE):
+                _add(c, Observation("outfall_look", False, candidate_id=top, role="inspector",
+                                    observed_at=datetime.now(timezone.utc), observer=user.id))
+                payload["not_confirmed"] = top
         try:
             a = c.act(body.type, _signed(user), payload)
         except ValueError as exc:
@@ -922,7 +950,7 @@ async def _site_headers(request: Request, call_next):
         response.headers.update({"Content-Security-Policy": CSP, "X-Content-Type-Options": "nosniff",
                                  "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY",
                                  "Permissions-Policy": "geolocation=(self), camera=(self)"})
-    proto = request.headers.get("x-forwarded-proto", "") if PROXY_HOPS else ""
+    proto = request.headers.get("x-forwarded-proto", "") if _from_proxy(request) else ""
     if request.url.scheme == "https" or proto.split(",")[-1].strip() == "https":
         response.headers["Strict-Transport-Security"] = "max-age=31536000"
     return response

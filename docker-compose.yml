@@ -5,7 +5,7 @@ services:
   app:
     build:
       context: .
-    ports: ["8000:8000"]
+    ports: ["127.0.0.1:8000:8000"]   # local only; put a TLS reverse proxy in front for a real deployment
     environment:
       DIPPER_DEMO: ${DIPPER_DEMO:-1}           # scenario replay and demo sign-in; set 0 in production
       FHIR_BASE_URL: ${FHIR_BASE_URL:-}
