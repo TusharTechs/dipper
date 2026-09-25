@@ -80,7 +80,7 @@ def replay(wet: bool = False, max_steps: int = 10, roles: tuple[str, ...] = ("ci
     case, when = build_case(wet, ctx)
     b = case.belief
     yield {"step": 0, "event": "reports", "context": case.ctx.describe(), "hypotheses": b.hypothesis_table()[:3],
-           "top_source": b.top_source(), "entropy_bits": round(b.entropy_s(), 2), "ledger": [e.text for e in b.ledger],
+           "top_source": b.top_source(), "entropy_bits": round(b.location_entropy(), 2), "ledger": [e.text for e in b.ledger],
            "case": case}
     t = when + timedelta(hours=1)
     for step in range(1, max_steps + 1):
@@ -94,7 +94,7 @@ def replay(wet: bool = False, max_steps: int = 10, roles: tuple[str, ...] = ("ci
         t += timedelta(minutes=25)
         yield {"step": step, "event": "check", "recommended": rec.label, "reason": rec.reason, "score": rec.score,
                "result": "positive" if positive else "clean", "top_source": b.top_source(),
-               "entropy_bits": round(b.entropy_s(), 2), "p_harmful": round(b.p_harmful(), 3), "status": case.status,
+               "entropy_bits": round(b.location_entropy(), 2), "p_harmful": round(b.p_harmful(), 3), "status": case.status,
                "case": case}
 
 

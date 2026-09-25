@@ -80,6 +80,14 @@ class Case:
         return out
 
     # ---- view -------------------------------------------------------------------
+    def _obs_view(self, o: Observation) -> dict[str, Any]:
+        nid = self.graph.candidate(o.candidate_id).node_id if o.candidate_id else o.node_id
+        nd = self.graph.nodes[nid]
+        return {"kind": o.kind, "positive": o.positive, "role": o.role, "tier": o.tier, "lat": nd.lat, "lon": nd.lon,
+                "where": self.graph.candidate(o.candidate_id).label if o.candidate_id else self.graph.node_label(o.node_id),
+                "observed_at": o.observed_at.isoformat() if o.observed_at else None,
+                "features": [f for f, present in o.features if present]}
+
     def view(self, n_recommendations: int = 5, roles: tuple[str, ...] = ("citizen", "trained", "inspector")) -> dict[str, Any]:
         b = self.belief
         labels = b.labels()
@@ -106,6 +114,7 @@ class Case:
             "outside_or_unmapped": round(ms[OUTSIDE], 4), "diffuse": round(ms[NONE], 4),
             "sources": sources, "ribbon": ribbon,
             "ledger": [e.as_dict() for e in b.ledger],
+            "observations": [self._obs_view(o) for o in b.observations],
             "unknowns": self.unknowns(),
             "exposure": exposure_report(b),
             "recommendations": [r.as_dict() for r in recs],

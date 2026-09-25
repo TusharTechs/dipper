@@ -1,0 +1,19 @@
+id: dipper.fhir.response
+canonical: https://example.org/fhir/dipper
+name: DipperResponseProfiles
+title: Dipper response profiles for the OneAquaHealth IG
+description: >-
+  Draft profiles for the response side of urban-stream pollution surveillance (citizen signals, source cases,
+  exposure risk, check requests, field tasks, advisories, provenance). Builds on hl7.eu.fhir.oah.
+  Hackathon prototype; not endorsed by HL7 Europe or the OneAquaHealth consortium.
+status: draft
+version: 0.1.0
+fhirVersion: 4.0.1
+copyrightYear: 2026+
+releaseLabel: ci-build
+license: CC-BY-4.0
+publisher:
+  name: Dipper (OneAquaHealth IEEE Hackathon 2026 prototype)
+dependencies:
+  hl7.eu.fhir.oah: 0.1.0-ci-build
+FSHOnly: true

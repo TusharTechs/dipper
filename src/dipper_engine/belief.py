@@ -61,7 +61,8 @@ class LedgerEntry:
     kind: str
     tier: str
     weight_bans: float                  # log10 likelihood ratio for `weight_for` vs the alternatives
-    weight_for: str                     # hypothesis the evidence moved most
+    weight_for: str                     # hypothesis the evidence moved most ("" if no shift >= 0.2 bans)
+    harm_bans: float                    # log10 likelihood ratio: harmful point-source pollution vs not
     entropy_before_bits: float
     entropy_after_bits: float
     p_harmful_before: float
@@ -203,7 +204,10 @@ class Belief:
         if obs.kind == "report":
             lik = lik ** self._report_exponent(obs)
         lik = self._robust(lik, before)
-        h_before, harm_before = self.entropy_s(before), float(before[self._harm].sum())
+        h_before, harm_before = self.location_entropy(before), float(before[self._harm].sum())
+        hb, nb = before[self._harm].sum(), before[~self._harm].sum()
+        harm_bans = math.log10(((before[self._harm] * lik[self._harm]).sum() / hb) /
+                               ((before[~self._harm] * lik[~self._harm]).sum() / nb)) if hb > 0 and nb > 0 else 0.0
         # Evidence weight: the hypothesis whose odds moved most.
         best_h, best_w = HYPOTHESES[0], 0.0
         for k, h in enumerate(HYPOTHESES):
@@ -225,8 +229,8 @@ class Belief:
         after = self.p
         entry = LedgerEntry(
             index=len(self.ledger) + 1, text=obs.describe(self.graph), kind=obs.kind, tier=obs.tier,
-            weight_bans=round(best_w, 3), weight_for=best_h,
-            entropy_before_bits=round(h_before, 3), entropy_after_bits=round(self.entropy_s(after), 3),
+            weight_bans=round(best_w, 3), weight_for=best_h if abs(best_w) >= 0.2 else "", harm_bans=round(harm_bans, 3),
+            entropy_before_bits=round(h_before, 3), entropy_after_bits=round(self.location_entropy(after), 3),
             p_harmful_before=round(harm_before, 4), p_harmful_after=round(float(after[self._harm].sum()), 4),
             top_source_after=self.top_source(after),
         )
@@ -272,6 +276,16 @@ class Belief:
         ms = np.array(list(self.marginal_s(p).values()))
         ms = ms[ms > 0]
         return float(-(ms * np.log2(ms)).sum())
+
+    def location_entropy(self, p: np.ndarray | None = None) -> float:
+        """Uncertainty (bits) about the entry point, given that there is a point source."""
+        ms = self.marginal_s(p)
+        pts = np.array([v for k, v in ms.items() if k != NONE])
+        z = pts.sum()
+        if z <= 0:
+            return 0.0
+        pts = pts[pts > 0] / z
+        return float(-(pts * np.log2(pts)).sum())
 
     def top_source(self, p: np.ndarray | None = None) -> tuple[str, float]:
         ms = self.marginal_s(p)

@@ -91,6 +91,7 @@ def test_evidence_ledger_explains_each_update(graph):
     b.update(Observation("ammonium_strip", True, node_id=lowest_access(graph), role="trained"))
     assert len(b.ledger) == 2
     assert b.ledger[0].weight_for == "foul" and b.ledger[0].weight_bans > 0
+    assert b.ledger[0].harm_bans > 0 and b.ledger[1].harm_bans > 0
     assert b.ledger[1].text.startswith("Ammonium strip")
 
 

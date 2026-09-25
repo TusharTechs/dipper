@@ -11,3 +11,6 @@ data/cache/*
 !data/cache/openmeteo_*.json
 data/sourcebench_stdout.txt
 .DS_Store
+fhir/.build/
+fhir/ig/fsh-generated/
+web/dist/

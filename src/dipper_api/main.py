@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from dipper_engine import Case, Context, Observation, ReachGraph
+from dipper_engine.fhir import case_bundle
 from dipper_engine.model import CHECK_TYPES, FEATURES, ROLES
 from dipper_engine.scenario import TRUE_SOURCE, build_case, truth_result
 from dipper_engine.sim import load_networks, run_trial, summarise
@@ -162,6 +163,12 @@ def list_cases(status: str | None = None) -> list[dict]:
 @app.get("/v1/cases/{case_id}")
 def case_view(case_id: str, k: int = 5) -> dict:
     return get_case(case_id).view(n_recommendations=k)
+
+
+@app.get("/v1/cases/{case_id}/fhir")
+def case_fhir(case_id: str) -> dict:
+    """FHIR R4 Bundle (collection) using OAH LocationOah/GroupOah plus Dipper response profiles."""
+    return case_bundle(get_case(case_id))
 
 
 @app.post("/v1/signals")
