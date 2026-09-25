@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dipper thumbnails</title>
+<style>
+  :root { --bg: #071114; --teal: #157f78; --teal-hi: #2fb5aa; --foam: #bfe9e4; --amber: #e2a33b; --red: #d2553b; --text: #eaf4f2; --muted: #93aaa7;
+    --font: -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); color: var(--text); -webkit-font-smoothing: antialiased; background: #000; }
+  .frame { position: relative; overflow: hidden; background:
+    radial-gradient(900px 600px at 72% 42%, rgba(21, 127, 120, 0.34), transparent 70%),
+    radial-gradient(700px 500px at 10% 100%, rgba(21, 127, 120, 0.16), transparent 70%), var(--bg); }
+  .dots { position: absolute; inset: 0; opacity: 0.55; background-image: radial-gradient(rgba(191, 233, 228, 0.16) 1.3px, transparent 1.6px); background-size: 30px 30px; }
+  .abs { position: absolute; }
+  svg.layer { position: absolute; inset: 0; }
+  .brand { display: flex; align-items: center; gap: 16px; font-weight: 800; letter-spacing: -0.03em; color: #fff; }
+  .h { font-weight: 850; letter-spacing: -0.035em; line-height: 0.98; color: #fff; }
+  .accent { color: #43c3b7; }
+  .chip { display: inline-flex; align-items: center; gap: 10px; padding: 10px 20px; border-radius: 999px; font-weight: 700;
+    background: rgba(15, 30, 36, 0.9); border: 1px solid rgba(191, 233, 228, 0.18); color: var(--text); white-space: nowrap; }
+  .device { position: absolute; border-radius: 52px; background: #0b0f10; padding: 12px;
+    box-shadow: 0 0 0 2px #2a3438, 0 0 0 6px #11181a, 0 40px 90px rgba(0, 0, 0, 0.6), 0 0 140px rgba(47, 181, 170, 0.25); }
+  .screen { position: relative; overflow: hidden; border-radius: 42px; background: #fff; padding-top: 46px; }
+  .screen img { display: block; width: 100%; }
+  .island { position: absolute; left: 50%; top: 10px; width: 96px; height: 28px; margin-left: -48px; border-radius: 16px; background: #000; }
+  .vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.5) 100%); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+// Thumbnails for the demo video (YouTube, 16:9) and the Devpost gallery (3:2). thumbnails.mjs screenshots this page.
+// The stream is the real reach; its colours and the 92 % ring come from the capture of the live app.
+const Q = new URLSearchParams(location.search), MODE = Q.get('mode') ?? 'youtube'
+const TL = await (await fetch('out/timeline.json')).json(), REACH = await (await fetch('out/reach.json')).json()
+const W = MODE === 'youtube' ? 1280 : 1500, H = MODE === 'youtube' ? 720 : 1000
+const SVGT = new Set(['svg', 'g', 'path', 'circle', 'ellipse', 'rect', 'text', 'defs', 'filter', 'feGaussianBlur', 'clipPath'])
+const h = (tag, attrs = {}, parent, html) => {
+  const e = SVGT.has(tag) ? document.createElementNS('http://www.w3.org/2000/svg', tag) : document.createElement(tag)
+  for (const [a, v] of Object.entries(attrs)) a === 'style' ? Object.assign(e.style, v) : e.setAttribute(a, v)
+  if (html != null) e.innerHTML = html
+  parent?.appendChild(e); return e
+}
+const root = h('div', { class: 'frame', style: { width: `${W}px`, height: `${H}px` } }, document.getElementById('root'))
+h('div', { class: 'dots' }, root)
+
+// ---- the stream, ordered from source to outlet ----
+const nodes = new Map(), edges = [], cands = []
+for (const f of REACH.features) {
+  const p = f.properties
+  if (p.role === 'node') nodes.set(p.id, f.geometry.coordinates)
+  else if (p.role === 'edge') edges.push({ ...p, cs: f.geometry.coordinates })
+  else if (p.role === 'candidate') cands.push(p)
+}
+const from = new Map(edges.map((e) => [e.from, e])), tos = new Set(edges.map((e) => e.to))
+let cur = [...from.keys()].find((id) => !tos.has(id)); const ll = [], idx = new Map([[cur, 0]])
+while (from.has(cur)) { const e = from.get(cur); e.cs.forEach((c, i) => { if (i || !ll.length) ll.push(c) }); cur = e.to; idx.set(cur, ll.length - 1) }
+const m = ll.map(([lon, lat]) => [lon * Math.PI / 180, -Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360))])
+function fit(box) {
+  const xs = m.map((p) => p[0]), ys = m.map((p) => p[1]), x0 = Math.min(...xs), y0 = Math.min(...ys)
+  const s = Math.min(box.w / (Math.max(...xs) - x0), box.h / (Math.max(...ys) - y0))
+  const ox = box.x + (box.w - (Math.max(...xs) - x0) * s) / 2, oy = box.y + (box.h - (Math.max(...ys) - y0) * s) / 2
+  const pts = m.map(([x, y]) => [ox + (x - x0) * s, oy + (y - y0) * s])
+  const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]))
+  return { pts, cum, L: cum.at(-1) }
+}
+const beliefs = TL.capture.desk.facts.beliefs, last = beliefs.at(-1)
+const sOf = (label) => { const c = cands.find((x) => x.label === label); const P = fit({ x: 0, y: 0, w: 1, h: 1 }); return P.cum[idx.get(c.node_id)] / P.L }
+const heat = (s) => last.src.reduce((a, [l, p]) => a + (sOf(l) <= s ? p / 100 : 0), 0)
+const STOPS = [[0, [94, 142, 140]], [0.18, [133, 165, 140]], [0.4, [226, 163, 59]], [0.7, [214, 88, 58]], [1, [196, 52, 40]]]
+const color = (v) => { let i = 1; while (i < STOPS.length - 1 && STOPS[i][0] < v) i++; const [a, ca] = STOPS[i - 1], [b, cb] = STOPS[i], u = (v - a) / (b - a); return `rgb(${ca.map((c, j) => Math.round(c + (cb[j] - c) * u)).join(',')})` }
+function stream(box, width, ringR) {
+  const P = fit(box), svg = h('svg', { class: 'layer', viewBox: `0 0 ${W} ${H}`, width: W, height: H }, root)
+  const defs = h('defs', {}, svg), f = h('filter', { id: 'b', x: '-10%', y: '-50%', width: '120%', height: '200%' }, defs); h('feGaussianBlur', { stdDeviation: width * 1.6 }, f)
+  const d = 'M' + P.pts.map((p) => p.map((v) => v.toFixed(1)).join(' ')).join(' L')
+  h('path', { d, fill: 'none', stroke: '#15282e', 'stroke-width': width * 3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg)
+  const K = 90, g = h('g', {}, svg), glow = h('g', { filter: 'url(#b)', opacity: 0.8 }, svg)
+  for (let i = 0; i < K; i++) {
+    const a = i / K * P.L, b = (i + 1.05) / K * P.L, seg = [P.pts.find((_, j) => P.cum[j] >= a) ?? P.pts[0]]
+    P.pts.forEach((p, j) => { if (P.cum[j] > a && P.cum[j] < b) seg.push(p) }); seg.push(P.pts.find((_, j) => P.cum[j] >= b) ?? P.pts.at(-1))
+    const sd = 'M' + seg.map((p) => p.join(' ')).join(' L'), col = color(heat((i + 0.5) / K))
+    h('path', { d: sd, fill: 'none', stroke: col, 'stroke-width': width, 'stroke-linecap': 'round' }, g)
+    h('path', { d: sd, fill: 'none', stroke: col, 'stroke-width': width * 2.2, 'stroke-linecap': 'round' }, glow)
+  }
+  // the localized outfall
+  const top = last.src[0], c = cands.find((x) => x.label === top[0]), [x, y] = P.pts[idx.get(c.node_id)]
+  for (const [r, o] of [[ringR * 2.3, 0.18], [ringR * 1.6, 0.35]]) h('circle', { cx: x, cy: y, r, fill: 'none', stroke: '#ff7a5c', 'stroke-width': 3, opacity: o }, svg)
+  h('circle', { cx: x, cy: y, r: ringR, fill: '#d2553b', stroke: '#fff', 'stroke-width': 4 }, svg)
+  return { x, y, label: `${top[0]} · ${top[1]}%` }
+}
+const LOGO = `<svg viewBox="0 0 64 64" width="SIZE" height="SIZE"><rect width="64" height="64" rx="15" fill="#157F78"/>
+  <ellipse cx="32" cy="52.6" rx="9.6" ry="2.7" fill="none" stroke="#BFE9E4" stroke-width="2.4"/><ellipse cx="32" cy="53.2" rx="19.5" ry="5.3" fill="none" stroke="#BFE9E4" stroke-width="2" opacity=".55"/>
+  <path d="M22.2 21.2 L12.2 12.9 Q11.3 11.3 13.2 11.6 L26.6 17.2 Z" fill="#0F1E24"/>
+  <clipPath id="pc"><path d="M32 51.2 C28.6 45.5 16.5 37.6 16.5 26.5 A15.5 15.5 0 0 1 47.5 26.5 C47.5 37.6 35.4 45.5 32 51.2 Z"/></clipPath>
+  <path d="M32 51.2 C28.6 45.5 16.5 37.6 16.5 26.5 A15.5 15.5 0 0 1 47.5 26.5 C47.5 37.6 35.4 45.5 32 51.2 Z" fill="#0F1E24"/>
+  <path clip-path="url(#pc)" d="M49 23.6 C45.6 25.3 41.6 25.6 38.3 24.9 C36.4 30.2 36.7 36.6 38.6 43.6 L49 43.6 Z" fill="#fff"/>
+  <path d="M46.4 19.4 L54.6 21.7 L47.1 24.3 Z" fill="#0F1E24"/><circle cx="41.2" cy="19.3" r="1.9" fill="#fff"/></svg>`
+const logo = (size) => LOGO.replaceAll('SIZE', size)
+// A real phone frame from the capture: the thank-you and nearby mission after reporting.
+const ph = TL.capture.phone, ans = ph.events.find((e) => e.kind === 'beat' && e.id === 'p-answer')
+const phoneFrame = 'out/capture/phone/' + ph.frames.filter((f) => f.t <= ans.t - 0.3).at(-1).f
+const phone = (x, y, w, rot) => {
+  const d = h('div', { class: 'device', style: { left: `${x}px`, top: `${y}px`, width: `${w + 24}px`, transform: `rotate(${rot}deg)` } }, root)
+  const s = h('div', { class: 'screen', style: { width: `${w}px`, height: `${w * 844 / 390 + 46}px` } }, d)  // status bar above the page
+  h('img', { src: phoneFrame }, s); h('div', { class: 'island' }, s)
+  return d
+}
+
+if (MODE === 'youtube') {
+  const r = stream({ x: -60, y: 470, w: 1000, h: 250 }, 9, 13)
+  phone(890, 118, 300, 5)  // low enough that the app footer falls off the frame
+  h('div', { class: 'abs brand', style: { left: '64px', top: '56px', fontSize: '46px' } }, root, `${logo(62)}Dipper`)
+  h('div', { class: 'abs h', style: { left: '60px', top: '170px', fontSize: '112px', width: '860px' } }, root, 'Find the<br><span class="accent">polluting pipe.</span>')
+  h('div', { class: 'abs chip', style: { left: `${Math.min(r.x - 60, 700)}px`, top: `${r.y - 78}px`, fontSize: '26px', background: '#d2553b', borderColor: 'transparent', color: '#fff' } }, root, `Found: ${r.label}`)
+} else {
+  const r = stream({ x: 90, y: 560, w: 1320, h: 330 }, 11, 15)
+  h('div', { class: 'abs brand', style: { left: '90px', top: '90px', fontSize: '120px' } }, root, `${logo(150)}Dipper`)
+  h('div', { class: 'abs h', style: { left: '94px', top: '285px', fontSize: '62px', width: '1320px', lineHeight: 1.08 } }, root, 'Find urban stream pollution<br><span class="accent">at its source.</span>')
+  h('div', { class: 'abs', style: { left: '94px', top: '462px', display: 'flex', gap: '14px' } }, root,
+    ['Citizen reports', 'Bayesian search', 'FHIR hand-off', 'Public advisories'].map((c) => `<span class="chip" style="font-size:24px">${c}</span>`).join(''))
+  h('div', { class: 'abs chip', style: { left: `${r.x - 90}px`, top: `${r.y - 86}px`, fontSize: '28px', background: '#d2553b', borderColor: 'transparent', color: '#fff' } }, root, `Found: ${r.label}`)
+}
+h('div', { class: 'vignette' }, root)
+await document.fonts.ready
+await Promise.all([...document.images].map((i) => i.decode().catch(() => {})))
+window.ready = { w: W, h: H }
+</script>
+</body>
+</html>

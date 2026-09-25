@@ -24,3 +24,6 @@ data/dev.sqlite3*
 
 # Weather downloaded for live cases. The scenario replay's files are tracked; add new ones with git add -f.
 data/cache/
+
+# Demo video renders (video/make.mjs)
+video/out/

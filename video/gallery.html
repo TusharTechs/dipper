@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dipper gallery</title>
+<style>
+  :root { --bg: #071114; --teal-hi: #2fb5aa; --text: #eaf4f2; --muted: #93aaa7;
+    --font: -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); color: var(--text); -webkit-font-smoothing: antialiased; background: #000; }
+  .frame { position: relative; width: 1800px; height: 1200px; overflow: hidden; background:
+    radial-gradient(1100px 700px at 70% 60%, rgba(21, 127, 120, 0.26), transparent 70%), var(--bg); }
+  .dots { position: absolute; inset: 0; opacity: 0.5; background-image: radial-gradient(rgba(191, 233, 228, 0.15) 1.3px, transparent 1.6px); background-size: 32px 32px; }
+  .head { position: absolute; left: 90px; top: 64px; right: 90px; display: flex; align-items: flex-end; justify-content: space-between; }
+  .eyebrow { font-size: 22px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--teal-hi); margin-bottom: 12px; }
+  .title { font-size: 58px; line-height: 1.04; font-weight: 800; letter-spacing: -0.025em; color: #fff; }
+  .brand { display: flex; align-items: center; gap: 12px; font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: #fff; opacity: 0.9; }
+  .media { position: absolute; left: 50%; transform: translateX(-50%); }
+  .film { border-radius: 20px; overflow: hidden; box-shadow: 0 0 0 1px rgba(191, 233, 228, 0.14), 0 40px 100px rgba(0, 0, 0, 0.55); }
+  .film img { display: block; width: 100%; }
+  .window { border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 40px 110px rgba(0, 0, 0, 0.6); }
+  .bar { position: relative; height: 42px; background: #1b2a30; display: flex; align-items: center; padding: 0 18px; gap: 9px; }
+  .bar i { width: 13px; height: 13px; border-radius: 50%; display: block; }
+  .bar span { position: absolute; left: 50%; transform: translateX(-50%); padding: 4px 18px; border-radius: 8px; background: #0e1a1e; color: #b9cfcc; font-size: 15px; min-width: 460px; text-align: center; }
+  .window img { display: block; width: 100%; }
+  .phones { display: flex; gap: 64px; align-items: flex-start; }
+  .device { border-radius: 50px; background: #0b0f10; padding: 12px;
+    box-shadow: 0 0 0 2px #2a3438, 0 0 0 6px #11181a, 0 40px 90px rgba(0, 0, 0, 0.55), 0 0 120px rgba(47, 181, 170, 0.16); }
+  .screen { position: relative; overflow: hidden; border-radius: 40px; background: #fff; padding-top: 40px; }
+  .screen img { display: block; width: 100%; }
+  .island { position: absolute; left: 50%; top: 9px; width: 90px; height: 26px; margin-left: -45px; border-radius: 14px; background: #000; }
+  .step { margin-top: 26px; text-align: center; font-size: 26px; font-weight: 650; color: #dfeae8; }
+  .step b { color: var(--teal-hi); margin-right: 8px; }
+</style>
+</head>
+<body>
+<div class="frame" id="f"><div class="dots"></div></div>
+<script type="module">
+// One 3:2 gallery image for the Devpost page, described by ?item=<json> (gallery.mjs renders them all).
+const item = JSON.parse(new URLSearchParams(location.search).get('item'))
+const f = document.getElementById('f')
+const add = (html) => { const d = document.createElement('div'); d.innerHTML = html; while (d.firstChild) f.appendChild(d.firstChild) }
+const logo = `<img src="../web/public/icon.svg" width="44" height="44" alt="">`
+add(`<div class="head"><div><div class="eyebrow">${item.eyebrow}</div><div class="title">${item.title}</div></div><div class="brand">${logo}Dipper</div></div>`)
+if (item.kind === 'film') add(`<div class="media film" style="top:250px;width:1520px"><img src="${item.src}"></div>`)
+if (item.kind === 'desk') add(`<div class="media window" style="top:246px;width:1392px"><div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span>${item.bar}</span></div><img src="${item.src}"></div>`)
+if (item.kind === 'phones') add(`<div class="media phones" style="top:250px">${item.shots.map(([src, label], i) => `<div>
+  <div class="device"><div class="screen" style="width:356px"><div class="island"></div><img src="${src}"></div></div>
+  <div class="step"><b>${i + 1}</b>${label}</div></div>`).join('')}</div>`)
+await document.fonts.ready
+await Promise.all([...document.images].map((i) => i.decode().catch(() => {})))
+window.ready = true
+</script>
+</body>
+</html>

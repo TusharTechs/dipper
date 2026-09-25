@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dipper · project brief</title>
+<style>
+  @page { size: A4; margin: 0; }
+  :root { --teal: #157f78; --teal-2: #0f5f5a; --ink: #0f1e24; --muted: #51676a; --line: #d9e6e3; --sand: #f6e8d2; --soft: #eef6f4;
+    --font: -apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif; --mono: 'SF Mono', Menlo, monospace; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); color: var(--ink); font-size: 10pt; line-height: 1.42; -webkit-font-smoothing: antialiased; }
+  .page { width: 210mm; height: 297mm; padding: 14mm 16mm 18mm; position: relative; page-break-after: always; overflow: hidden; }
+  .page:last-child { page-break-after: auto; }
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 5mm; }
+  header h1 { font-size: 30pt; letter-spacing: -0.03em; line-height: 1; }
+  header p { font-size: 13pt; color: var(--teal-2); font-weight: 600; margin-top: 3px; }
+  .links { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6mm; }
+  .links a { font-size: 9pt; color: var(--teal-2); text-decoration: none; background: var(--soft); border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; }
+  h2 { font-size: 9pt; letter-spacing: 0.16em; text-transform: uppercase; color: var(--teal); margin: 4.2mm 0 1.8mm; }
+  h2:first-of-type { margin-top: 0; }
+  p + p { margin-top: 2mm; }
+  ul { padding-left: 4.5mm; } li { margin: 1mm 0; }
+  b { font-weight: 650; }
+  table { width: 100%; border-collapse: collapse; font-size: 9.4pt; margin-top: 1mm; }
+  th, td { text-align: left; padding: 5px 7px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 8.4pt; color: var(--muted); font-weight: 650; }
+  table.tight { font-size: 8.8pt; } table.tight th, table.tight td { padding: 3.5px 7px; }
+  tr.us td { background: var(--soft); font-weight: 650; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  .shot { margin-top: 3mm; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+  .shot img { display: block; width: 100%; height: 66mm; object-fit: cover; object-position: top; }
+  .cap { font-size: 8.4pt; color: var(--muted); margin-top: 1.5mm; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 7mm; }
+  .formula { font-family: var(--mono); font-size: 8.4pt; white-space: nowrap; background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; margin: 2mm 0; }
+  ol.steps { list-style: none; padding: 0; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding-left: 8mm; margin: 2mm 0; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 5.5mm; height: 5.5mm; border-radius: 50%; background: var(--teal); color: #fff;
+    font-size: 8pt; font-weight: 700; display: grid; place-items: center; }
+  .note { font-size: 8.4pt; color: var(--muted); background: #fbf7ef; border-left: 3px solid #e2a33b; padding: 6px 9px; margin-top: 3mm; }
+  footer span:last-child { white-space: nowrap; }
+  footer { position: absolute; left: 16mm; right: 16mm; bottom: 8mm; font-size: 7.4pt; gap: 8mm; color: var(--muted); display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+<section class="page">
+  <header>
+    <img src="../web/public/icon.svg" width="62" height="62" alt="Dipper logo">
+    <div><h1>Dipper</h1><p>Find urban stream pollution at its source.</p></div>
+  </header>
+  <div class="links">
+    <a href="https://dipper-8fe5.onrender.com">Live demo · dipper-8fe5.onrender.com</a>
+    <a href="https://github.com/TusharTechs/dipper">Code · github.com/TusharTechs/dipper</a>
+    <a href="https://youtu.be/hws8kKtEp44">Video · youtu.be/hws8kKtEp44</a>
+  </div>
+
+  <h2>The problem</h2>
+  <p>Urban streams are polluted by sewage that should never reach them: household plumbing misconnected to the surface water drain, leaking sewers, and overflows after rain. In the UK alone, an estimated <b>150,000 to 500,000 homes</b> have a misconnected drain (CIWEM).</p>
+  <p>Knowing a stream is dirty is easy. Finding <b>which pipe</b> is responsible is hard: a stream has dozens of outfalls, discharges come and go, and crews walk the bank one pipe at a time. The people who notice first report into a void and never hear back. The recast EU Urban Wastewater Treatment Directive (2024/3019) now requires integrated plans covering storm overflows and urban runoff for every agglomeration of 100,000 p.e. and above by 2033.</p>
+
+  <h2>What Dipper does</h2>
+  <table>
+    <tr><th style="width:30%">Who</th><th>What they get</th></tr>
+    <tr><td><b>Citizen</b><br>phone, no account, offline, four languages</td><td>Reports what they see or smell in under a minute. Gets one short, nearby check that sharpens the search, and sees what their check changed.</td></tr>
+    <tr><td><b>Investigator</b><br>utility or municipality</td><td>A probability for each explanation and each candidate outfall, shaded along the real stream, and the next best checks with both outcomes spelled out.</td></tr>
+    <tr><td><b>Public health officer</b></td><td>A drafted advisory that keeps observed apart from inferred, the possible risk and what needs a lab. Nothing is published until a person approves it.</td></tr>
+    <tr><td><b>Health information systems</b></td><td>An HL7 FHIR R4 bundle on the OneAquaHealth IG, with 0 errors in the official HL7 validator, pushed to any FHIR server.</td></tr>
+  </table>
+  <p style="margin-top:3mm"><b>End to end:</b> report → case → next best check → source localized → FHIR handover → advisory → fix verified. The utility always confirms the pipe (dye test, smoke test or CCTV) before repair.</p>
+
+  <div class="shot"><img src="../docs/screenshots/workspace-localized.png" alt="Investigator workspace with the source localized at outfall O-9"></div>
+  <p class="cap">Investigator workspace on the live deployment: the source localized at outfall O-9. Scenario replay with real stream geometry and weather; outfalls, reports and check results are simulated and labelled as such.</p>
+  <footer><span>Dipper · project brief</span><span>1 / 2</span></footer>
+</section>
+
+<section class="page">
+  <div class="cols">
+    <div>
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li><b>Reports become evidence.</b> Each report is snapped to a stream network built from OpenStreetMap, with flow direction, culverts and bridged gaps.</li>
+        <li><b>One belief over what and where.</b> An exact joint probability over six explanations and every candidate outfall. Weather (Open Meteo) sets the priors: dry days favour a misconnection, rain an overflow.</li>
+        <li><b>Clean results count.</b> A clean look lowers every source upstream of it. Discharges are modelled as intermittent, so a clean check never rules a source out.</li>
+        <li><b>The next best check.</b> Every check at every point is scored:
+          <div class="formula">EVSI + 1.2·bits − cost − 0.1·delay</div>
+          Citizen missions are also charged for the walk from where the person reported.</li>
+        <li><b>Photos help, people decide.</b> EXIF is stripped and faces are blurred before a vision model (Claude or Gemini) reads a photo, which counts as a weaker observer than any person.</li>
+      </ol>
+    </div>
+    <div>
+      <h2>Results · SourceBench (simulation)</h2>
+      <table>
+        <tr><th>Strategy</th><th class="num">Correct</th><th class="num">Median checks</th><th class="num">Cost</th></tr>
+        <tr><td>Walk the bank</td><td class="num">28%</td><td class="num">20</td><td class="num">1.49</td></tr>
+        <tr><td>Bisect the stream</td><td class="num">43%</td><td class="num">13</td><td class="num">0.95</td></tr>
+        <tr class="us"><td>Dipper</td><td class="num">56%</td><td class="num">9.5</td><td class="num">1.30</td></tr>
+        <tr><td>Pure information gain</td><td class="num">74%</td><td class="num">8</td><td class="num">4.92</td></tr>
+      </table>
+      <p class="cap">7 stream networks (5 real OneAquaHealth streams, 2 synthetic), 40 trials each, 25-check budget, a simulated world noisier than the model. Dipper doubles the success of a bank walk at lower cost; pure information gain spends about 3.8 times more.</p>
+
+      <h2>Standards and trust</h2>
+      <ul>
+        <li><b>FHIR:</b> nine Dipper profiles on the OneAquaHealth IG (LocationOah, GroupOah), written in FHIR Shorthand, 0 validator errors in CI. Idempotent transaction push.</li>
+        <li><b>People approve:</b> advisories, handovers and dismissals need a signed-in person with the right role; every decision is in an audit trail.</li>
+        <li><b>Privacy:</b> anonymous citizens (keyed pseudonyms), private report tokens never in URLs, faces blurred, no IP addresses in logs.</li>
+        <li><b>Accessibility:</b> 0 axe violations (WCAG 2.2 AA) at desktop, phone and 320 px.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Architecture</h2>
+  <p>One container, deployed on Render. <b>Engine:</b> Python, NumPy, NetworkX. <b>API:</b> FastAPI with roles, hashed tokens, rate limits, a strict CSP and an append only SQLite event store that rebuilds cases by replay. <b>Web:</b> React and MapLibre PWA. <b>CI:</b> 84 tests, accessibility audit, FHIR validation, image build and smoke test.</p>
+
+  <h2>Status and next steps</h2>
+  <table class="tight">
+    <tr><th style="width:50%">Built and tested</th><th>Next, with a pilot partner</th></tr>
+    <tr><td>Engine, recommender, SourceBench and scenario replay</td><td>Real outfall inventories instead of synthetic candidates</td></tr>
+    <tr><td>Staff roles and approvals, audit trail, public advisories</td><td>Expert review of likelihoods; calibration against lab results</td></tr>
+    <tr><td>FHIR on the OneAquaHealth IG, validated and pushed</td><td>Overflow telemetry and sensor feeds as evidence</td></tr>
+    <tr><td>Accessible, offline capable citizen app in four languages</td><td>Native review of translations; notifications when a case changes</td></tr>
+  </table>
+
+  <div class="note"><b>Data honesty.</b> Stream geometry and places (OpenStreetMap) and weather (Open Meteo) are real. The demo's candidate outfalls, citizen reports and check results are simulated and labelled that way on screen. SourceBench results are from simulation, not field trials.</div>
+  <footer><span>Apache-2.0 · Map data © OpenStreetMap contributors · Weather: Open Meteo (CC BY 4.0) · Not affiliated with the OneAquaHealth consortium</span><span>2 / 2</span></footer>
+</section>
+</body>
+</html>
