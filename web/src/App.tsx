@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
+import Bench from './Bench'
 import Citizen from './Citizen'
 import Workspace from './Workspace'
 import { api, type CaseSummary } from './api'
 
-type Route = { page: 'ops' | 'queue' | 'citizen'; caseId: string | null }
+type Route = { page: 'ops' | 'queue' | 'citizen' | 'bench'; caseId: string | null }
 
 function parse(): Route {
   const h = window.location.hash.replace(/^#\/?/, '')
   const [page, id] = h.split('/')
   if (page === 'citizen') return { page: 'citizen', caseId: null }
   if (page === 'queue') return { page: 'queue', caseId: null }
+  if (page === 'bench') return { page: 'bench', caseId: null }
   return { page: 'ops', caseId: id || null }
 }
 
@@ -50,12 +52,14 @@ export default function App() {
         <a className={route.page === 'ops' ? 'on' : ''} href={route.caseId ? `#/ops/${route.caseId}` : '#/ops'}>Operations</a>
         <a className={route.page === 'queue' ? 'on' : ''} href="#/queue">Queue</a>
         <a className={route.page === 'citizen' ? 'on' : ''} href="#/citizen">Citizen</a>
+        <a className={route.page === 'bench' ? 'on' : ''} href="#/bench">SourceBench</a>
         <span className="spacer" />
         <span className="muted small">Prototype · OneAquaHealth IEEE Hackathon 2026</span>
       </nav>
       {route.page === 'ops' && <Workspace caseId={route.caseId} onCase={(id) => { window.location.hash = `#/ops/${id}` }} />}
       {route.page === 'queue' && <Queue />}
       {route.page === 'citizen' && <Citizen />}
+      {route.page === 'bench' && <Bench />}
     </div>
   )
 }

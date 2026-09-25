@@ -3,7 +3,7 @@
   --ink: #14242A; --ink-2: #34474D; --muted: #5E7075; --rule: #CFD9D5;
   --accent: #0E6B6B; --accent-ink: #FFFFFF; --accent-soft: #D6EAE8;
   --go: #4F7A22; --go-soft: #E3EED6; --warn: #9A5A06; --warn-soft: #F6E8D2; --stop: #A1282C; --stop-soft: #F6DCDC;
-  --harm: #C2552A; --src: #0E6B6B;
+  --harm: #C2552A; --src: #0E6B6B; --chart-hot: #009188; --chart-base: #A7B6B8; --chart-grid: #E3E9E6;
   --font: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   color-scheme: light;
@@ -14,7 +14,7 @@
     --ink: #E3ECEA; --ink-2: #C4D2D0; --muted: #94A9A8; --rule: #2B3D41;
     --accent: #56B8B3; --accent-ink: #0B1416; --accent-soft: #17393A;
     --go: #A2C872; --go-soft: #243418; --warn: #E3A850; --warn-soft: #3A2A12; --stop: #EC8286; --stop-soft: #3D1D1F;
-    --harm: #E88A5E; --src: #56B8B3;
+    --harm: #E88A5E; --src: #56B8B3; --chart-hot: #1F9C95; --chart-base: #4A5E62; --chart-grid: #22333A;
     color-scheme: dark;
   }
 }
@@ -131,3 +131,22 @@ tr.clickable { cursor: pointer; } tr.clickable:hover td { background: var(--sunk
 .outcome { background: var(--accent-soft); border-radius: 8px; padding: 8px 12px; }
 .outcome h2 { margin-top: 4px; }
 .done { background: var(--go-soft); color: var(--go); border-radius: 8px; padding: 8px 10px; font-size: 13.5px; margin: 0 0 10px; }
+
+.bench { max-width: 1100px; }
+.bench-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 820px) { .bench-grid { grid-template-columns: minmax(0, 1fr); } }
+.bench-chart { margin: 0; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; }
+.bench-chart figcaption { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.bench-chart .grid { stroke: var(--chart-grid); stroke-width: 1; }
+.bench-chart .mark { fill: var(--chart-base); transition: opacity .15s; }
+.bench-chart .mark.hot { fill: var(--chart-hot); }
+.bench-chart .val { font-size: 12px; fill: var(--ink-2); font-variant-numeric: tabular-nums; }
+.bench-chart .val.hot { font-weight: 700; fill: var(--ink); }
+.bench-tip { min-height: 20px; font-size: 13px; margin-top: 6px; }
+.bench-legend { margin: 4px 0 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; }
+.bench-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.bench-chart .cat { font-size: 12.5px; fill: var(--ink-2); }
+.bench-chart .cat.hot { font-weight: 700; fill: var(--ink); }
+.bench-legend .sw { width: 14px; height: 10px; border-radius: 3px; background: var(--chart-base); }
+.bench-legend .sw.hot { background: var(--chart-hot); }
+td.strong { font-weight: 700; }

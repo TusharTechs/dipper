@@ -281,6 +281,15 @@ def weather(lat: float, lon: float, when: datetime) -> dict:
     return {"regime": ctx.regime, "summary": ctx.describe(), **ctx.__dict__, "source": "Open-Meteo (CC BY 4.0)"}
 
 
+@app.get("/v1/sim/results")
+def sim_results() -> dict:
+    """Pre-computed SourceBench results (SIMULATION). Regenerate with `python -m dipper_engine.sim`."""
+    path = ROOT / "data" / "sourcebench" / "results.json"
+    if not path.exists():
+        raise HTTPException(404, "no SourceBench results yet")
+    return json.loads(path.read_text())
+
+
 @app.post("/v1/sim/runs")
 def sim_run(body: SimIn) -> dict:
     import random
