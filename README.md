@@ -6,6 +6,20 @@
 search that narrows down the polluting pipe with far fewer checks than walking the bank. It tells the public what is known, and hands the case to
 utilities and health systems in FHIR.
 
+**Live demo: https://dipper-8fe5.onrender.com**
+
+It runs on a free plan, so after 15 minutes without visitors the first page load takes about a minute while
+it wakes. Demo data resets when it sleeps. Photo analysis is switched off on the public demo.
+
+**A 5-minute walkthrough:**
+1. **Report** (the citizen app): pick a point on the stream, tap "Grey or milky water", and send. You get a
+   nearby check to help narrow the search. Switch to a stream in Oslo or Ghent to see Norwegian or Dutch.
+2. **Operations → Continue as investigator → Replay 18 Sep 2026**: press **Run top check** until the source
+   is localized. Watch the probability move along the real stream. Then **Hand off to utility**, and open the
+   **Hand-off & FHIR** tab.
+3. **Sign out → Continue as public-health officer → Advisory tab → Approve**, then open **Advisories** for the
+   public map.
+
 Built for the OneAquaHealth IEEE Global Hackathon 2026. Primary track: 3, AI-Supported Assessment. Also
 covers track 7, FHIR, and track 6.
 
