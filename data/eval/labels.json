@@ -1,0 +1,413 @@
+{
+  "labeller": "Developer, from each photo and its Wikimedia Commons description. Not expert-verified.",
+  "features": [
+    "grey",
+    "sewage_fungus",
+    "foam",
+    "brown_turbid",
+    "green",
+    "pipe_flowing",
+    "dead_fish"
+  ],
+  "labels": {
+    "clean-01": {
+      "in_scope": true,
+      "note": "Road embankment with culvert outlet, no water visible",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "clean-02": {
+      "in_scope": true,
+      "note": "Culvert with pooled dark water",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": null,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "clean-04": {
+      "in_scope": true,
+      "note": "Urban river park, calm water",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "clean-05": {
+      "in_scope": true,
+      "note": "Urban river park from above",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "foam-01": {
+      "in_scope": true,
+      "note": "Shimna River, foam at rapids (Commons: foam pollution)",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": true,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "foam-02": {
+      "in_scope": true,
+      "note": "St. Croix River covered in foam (1970s slide, colour cast)",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": true,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "foam-03": {
+      "in_scope": true,
+      "note": "St. Croix River with foam streaks (colour cast)",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": true,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "green-01": {
+      "in_scope": false,
+      "note": "Satellite image of reservoir bloom",
+      "features": {}
+    },
+    "green-02": {
+      "in_scope": true,
+      "note": "Algae-greened river with geese",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": true,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "green-03": {
+      "in_scope": true,
+      "note": "Aerial photo, algae in bay (Commons description; colour cast)",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": true,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "outfall-01": {
+      "in_scope": true,
+      "note": "Shoreline at wet-weather discharge sign, no visible discharge",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "outfall-02": {
+      "in_scope": true,
+      "note": "Shoreline at discharge point, no visible discharge",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "outfall-03": {
+      "in_scope": true,
+      "note": "Shoreline at discharge sign, no visible discharge",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "outfall-04": {
+      "in_scope": true,
+      "note": "Beach storm-drain outlets, dry",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "outfall-05": {
+      "in_scope": false,
+      "note": "Underside of a sewer aqueduct, no water",
+      "features": {}
+    },
+    "outfall-06": {
+      "in_scope": true,
+      "note": "Distant storm sewer outfall across a river",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": null,
+        "pipe_flowing": null,
+        "dead_fish": false
+      }
+    },
+    "outfall-07": {
+      "in_scope": false,
+      "note": "Underside of a sewer aqueduct, no water",
+      "features": {}
+    },
+    "outfall-08": {
+      "in_scope": true,
+      "note": "Untreated sewage plume in Moose River (colour cast)",
+      "features": {
+        "grey": true,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": null,
+        "dead_fish": false
+      }
+    },
+    "outfall-09": {
+      "in_scope": true,
+      "note": "Industrial effluent pouring into river",
+      "features": {
+        "grey": null,
+        "sewage_fungus": false,
+        "foam": null,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": true,
+        "dead_fish": false
+      }
+    },
+    "fish-01": {
+      "in_scope": true,
+      "note": "Dead fish in brown water",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": true,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": true
+      }
+    },
+    "fish-02": {
+      "in_scope": true,
+      "note": "Dead fish in river",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": null,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": true
+      }
+    },
+    "grey-01": {
+      "in_scope": true,
+      "note": "Mula River with white foam patches",
+      "features": {
+        "grey": null,
+        "sewage_fungus": false,
+        "foam": true,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "grey-02": {
+      "in_scope": true,
+      "note": "Columbia River, foam among rocks",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": true,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "grey-03": {
+      "in_scope": true,
+      "note": "Fish kill (colour cast)",
+      "features": {
+        "grey": null,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": true
+      }
+    },
+    "grey-04": {
+      "in_scope": true,
+      "note": "River choked with litter; litter is not a sewage feature",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "grey-05": {
+      "in_scope": true,
+      "note": "River bank with litter",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "grey-06": {
+      "in_scope": true,
+      "note": "Polluted river bank, water distant",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": null,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "turbid-01": {
+      "in_scope": false,
+      "note": "Satellite image of flood",
+      "features": {}
+    },
+    "turbid-02": {
+      "in_scope": false,
+      "note": "Satellite image of flood",
+      "features": {}
+    },
+    "turbid-03": {
+      "in_scope": false,
+      "note": "Satellite image of floodplain",
+      "features": {}
+    },
+    "turbid-04": {
+      "in_scope": true,
+      "note": "Mekong flood, muddy brown water",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": true,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "turbid-05": {
+      "in_scope": false,
+      "note": "Road sign reading MUDDY RIVER, no water in view",
+      "features": {}
+    },
+    "turbid-06": {
+      "in_scope": true,
+      "note": "Muddy River (Nevada): despite the name, clear water",
+      "features": {
+        "grey": false,
+        "sewage_fungus": false,
+        "foam": false,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "grey-07": {
+      "in_scope": true,
+      "note": "Sewage fungus, River Crane",
+      "features": {
+        "grey": false,
+        "sewage_fungus": true,
+        "foam": false,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    },
+    "grey-08": {
+      "in_scope": true,
+      "note": "Sphaerotilus natans (sewage fungus) under water",
+      "features": {
+        "grey": false,
+        "sewage_fungus": true,
+        "foam": false,
+        "brown_turbid": false,
+        "green": false,
+        "pipe_flowing": false,
+        "dead_fish": false
+      }
+    }
+  }
+}

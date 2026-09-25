@@ -19,3 +19,4 @@ data/media/
 data/research-probes/
 certs/*
 !certs/none.pem
+data/eval/photos/

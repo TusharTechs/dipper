@@ -29,6 +29,10 @@ DEFAULT_MODEL = os.getenv("DIPPER_VISION_MODEL", "claude-opus-5")
 GEMINI_MODEL = os.getenv("DIPPER_GEMINI_MODEL", "gemini-flash-latest")
 MAX_SIDE = 1568            # long-edge size that keeps detail without wasting image tokens
 PRESENT_AT = 0.6           # confidence needed to count a feature as present
+# Features the photo observer never reports. brown_turbid had 22% precision (7 false positives in 24
+# negatives) on the Commons evaluation (data/eval/report-gemini-v1.md), and a false brown call pushes the
+# engine away from sewage. Citizens still report turbidity themselves.
+PHOTO_EXCLUDED = frozenset({"brown_turbid"})
 CONFLICT_AT = 0.75         # confidence needed to question a citizen's answer
 
 
@@ -74,10 +78,16 @@ def _blur_faces(img: Image.Image) -> tuple[int, bool]:
     gray = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2GRAY)
     boxes = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(24, 24))
     for (x, y, w, h) in boxes:
-        pad = int(0.25 * max(w, h))
-        box = (max(0, x - pad), max(0, y - pad), min(img.width, x + w + pad), min(img.height, y + h + pad))
-        img.paste(img.crop(box).filter(ImageFilter.GaussianBlur(radius=max(12, w // 3))), box[:2])
+        blur_box(img, x, y, w, h)
     return len(boxes), True
+
+
+def blur_box(img: Image.Image, x: int, y: int, w: int, h: int) -> None:
+    """Blur a detected region (with padding) in place. OpenCV returns NumPy ints; Pillow needs Python ints."""
+    x, y, w, h = int(x), int(y), int(w), int(h)
+    pad = int(0.25 * max(w, h))
+    box = (max(0, x - pad), max(0, y - pad), min(img.width, x + w + pad), min(img.height, y + h + pad))
+    img.paste(img.crop(box).filter(ImageFilter.GaussianBlur(radius=max(12, w // 3))), box[:2])
 
 
 # ---- structured extraction ------------------------------------------------------------------
@@ -252,7 +262,7 @@ def to_observation(pf: PhotoFeatures, node_id: str, observed_at=None, tier: str 
     if not (pf.image_usable and pf.shows_stream_or_outfall):
         return None
     feats = tuple((f, c.present and c.confidence >= PRESENT_AT) for f, c in pf.calls().items()
-                  if c.confidence >= PRESENT_AT or not c.present)
+                  if f not in PHOTO_EXCLUDED and (c.confidence >= PRESENT_AT or not c.present))
     positive = any(present for _, present in feats)
     return Observation("report" if positive else "instream_look", positive, node_id=node_id, role=PHOTO_ROLE,
                        features=feats if positive else (), observed_at=observed_at, tier=tier)
@@ -261,7 +271,7 @@ def to_observation(pf: PhotoFeatures, node_id: str, observed_at=None, tier: str 
 def conflicts(citizen: dict[str, bool], pf: PhotoFeatures) -> list[Conflict]:
     out = []
     for f, c in pf.calls().items():
-        if f not in citizen:
+        if f not in citizen or f in PHOTO_EXCLUDED:
             continue
         said = citizen[f]
         if c.confidence >= CONFLICT_AT and c.present != said:

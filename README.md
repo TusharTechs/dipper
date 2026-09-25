@@ -117,12 +117,12 @@ fhir/ig/                 Dipper FSH profiles on the OAH IG; fhir/examples/ bundl
 
 | Built | Next |
 |---|---|
-| Engine, value-of-information recommender, SourceBench, scenario replay, API, 36 tests | Live evaluation of photo features on labelled outfall photos (needs an API key) |
+| Engine, value-of-information recommender, SourceBench, scenario replay, API, 41 tests | Expert-labelled evaluation on real outfall photos (grey water is under-represented) |
 | Web UI: case workspace with probability ribbon, queue, SourceBench screen, citizen report, photo and mission flow (PT and EN) | PostGIS for multi-user deployments (SQLite event store today) |
 | FHIR: 8 Dipper response profiles on the OAH IG; bundle export; **0 errors** in the HL7 validator | Offline PWA, notifications, ENORA API import |
 | Real OSM reaches for 6 OAH streams; real weather context; human approval gates; evidence ledger | Expert review of likelihoods; lab calibration |
 | SQLite event store (cases survive restarts; `/history` audit trail) | Number-plate redaction |
-| Photo pipeline: EXIF stripped, faces blurred, then Claude (`claude-opus-5`, structured output, refusal fallbacks) reads visual indicators as a down-weighted observer | |
+| Photo pipeline: EXIF stripped, faces blurred, then Claude or Gemini reads visual indicators as a down-weighted observer; smoke-tested on 35 Commons photos ([data/eval](data/eval/README.md)) | |
 
 ## Licence and attribution
 

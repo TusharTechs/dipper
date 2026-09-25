@@ -189,3 +189,24 @@ def test_gemini_network_failure_becomes_unavailable():
     client = SimpleNamespace(models=SimpleNamespace(generate_content=down))
     with pytest.raises(PhotoModelUnavailable, match="unreachable"):
         extract_features_gemini(b"x", client=client)
+
+
+def test_blur_box_accepts_opencv_numpy_coordinates_and_changes_pixels():
+    import numpy as np
+    from dipper_engine.photo import blur_box
+    img = Image.new("RGB", (200, 200), "white")
+    for i in range(0, 200, 4):  # high-frequency stripes so a blur is measurable
+        img.paste((0, 0, 0), (i, 60, i + 2, 140))
+    before = np.asarray(img).astype(int).copy()
+    blur_box(img, *np.array([70, 70, 50, 50], dtype=np.int32))
+    after = np.asarray(img).astype(int)
+    assert np.abs(after[90:110, 90:110] - before[90:110, 90:110]).mean() > 20  # region blurred
+    assert (after[:40, :40] == before[:40, :40]).all()                       # outside untouched
+
+
+def test_photo_observer_does_not_report_excluded_brown_turbid():
+    pf = PhotoFeatures.model_validate_json(features_json(brown_turbid={"present": True, "confidence": 0.95},
+                                                         grey={"present": True, "confidence": 0.9}))
+    obs = to_observation(pf, "n1")
+    assert "brown_turbid" not in dict(obs.features) and dict(obs.features)["grey"] is True
+    assert conflicts({"brown_turbid": False}, pf) == []

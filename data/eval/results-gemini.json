@@ -1,0 +1,1262 @@
+{
+  "clean-01": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.2
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.2
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.8
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "note": "Large concrete box culvert visible beneath a reinforced roadway embankment, but any water or flow inside or exiting the culvert is largely hidden in shadow."
+    },
+    "seconds": 4.91
+  },
+  "clean-02": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.01
+      },
+      "note": "Large concrete box culvert conveying a stream beneath a road embankment. Water appears calm, clear, and shallow over bed sediment, with no visible discoloration, foam, or debris."
+    },
+    "seconds": 4.49
+  },
+  "clean-04": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.85
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.85
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.7
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "note": "Wide panoramic view of a river or canal channel from an elevated distance, making detailed water surface observation limited."
+    },
+    "seconds": 4.58
+  },
+  "clean-05": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.6
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.7
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.85
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "note": "Distant view of a stream channel flowing beneath an arched pedestrian bridge towards the coast. Surface water details are limited by distance and sky reflections."
+    },
+    "seconds": 4.79
+  },
+  "foam-01": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.7
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.85
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "note": "Stream flowing through dense woodland, partially obscured by trees, with natural cascade creating whitewater."
+    },
+    "seconds": 4.85
+  },
+  "foam-02": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.2
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "foam": {
+        "present": true,
+        "confidence": 0.95
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.25
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "note": "Extensive accumulation of thick foam or scum covering large portions of the river surface in swirling patterns, viewed from an embankment beside railroad tracks. The vintage photographic color cast limits assessment of true water tint."
+    },
+    "seconds": 5.11
+  },
+  "foam-03": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.3
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "foam": {
+        "present": true,
+        "confidence": 0.95
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.3
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "note": "A wide river or stream viewed from an elevated distance shows extensive white foam/scum patterns covering much of the surface. A strong magenta/pink color cast affects the photograph."
+    },
+    "seconds": 4.17
+  },
+  "green-01": {
+    "features": {
+      "shows_stream_or_outfall": false,
+      "image_usable": false,
+      "grey": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "green": {
+        "present": true,
+        "confidence": 0.95
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "note": "Satellite image of a large reservoir rather than a ground-level photo of an urban stream or outfall."
+    },
+    "seconds": 7.93
+  },
+  "green-02": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.8
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "green": {
+        "present": true,
+        "confidence": 0.85
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.99
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.99
+      },
+      "note": "A shallow stream or river containing several birds on and around rocks. Submerged algae or aquatic vegetation gives the water a distinctly green appearance, with bright green growth visible on the rocks."
+    },
+    "seconds": 4.28
+  },
+  "green-03": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.98
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "brown_turbid": {
+        "present": true,
+        "confidence": 0.96
+      },
+      "green": {
+        "present": true,
+        "confidence": 0.75
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.98
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.99
+      },
+      "note": "Aerial perspective showing a wide plume of turbid brown water mixing into darker water along a shoreline, with patches of green surface vegetation or algae mats visible near the bank."
+    },
+    "seconds": 4.27
+  },
+  "outfall-01": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "brown_turbid": {
+        "present": true,
+        "confidence": 0.65
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.8
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "note": "A wet weather discharge point warning sign overlooks a tidal inlet or shoreline, with exposed mud and rocks at low tide. No pipe discharge or distinct sewage indicators are visible."
+    },
+    "seconds": 4.68
+  },
+  "outfall-02": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.85
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "brown_turbid": {
+        "present": true,
+        "confidence": 0.85
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.98
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "note": "Shoreline under an elevated concrete deck or bridge with riprap and tidal rocks. The water is brown and turbid. Algal/seaweed growth is visible on the exposed stones, along with ducks on the mud flat."
+    },
+    "seconds": 5.11
+  },
+  "outfall-03": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.85
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.85
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "brown_turbid": {
+        "present": true,
+        "confidence": 0.65
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.85
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "note": "View of a rocky intertidal discharge channel or drainage area leading to open water, marked by a wet weather discharge warning sign. Ducks are present on the exposed mud and rocks."
+    },
+    "seconds": 6.85
+  },
+  "outfall-04": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.98
+      },
+      "note": "Large storm outfall culverts open onto a sandy beach beneath a promenade wall. No active water flow or standing water is visible."
+    },
+    "seconds": 4.82
+  },
+  "outfall-05": {
+    "features": {
+      "shows_stream_or_outfall": false,
+      "image_usable": false,
+      "grey": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "note": "The image shows the underside of a metal bridge structure and an abutment wall; no stream, banks, or outfall pipe are visible."
+    },
+    "seconds": 4.06
+  },
+  "outfall-06": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "green": {
+        "present": true,
+        "confidence": 0.75
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.7
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "note": "A large concrete outfall structure with a grated opening is visible on the opposite bank across a wide body of water. The water has a greenish tint. From this distance, active discharge cannot be confirmed."
+    },
+    "seconds": 4.34
+  },
+  "outfall-07": {
+    "features": {
+      "shows_stream_or_outfall": false,
+      "image_usable": false,
+      "grey": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "note": "The image shows the underside of a bridge and a stone wall; no stream, water body, or outfall is visible."
+    },
+    "seconds": 4.1
+  },
+  "outfall-08": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.3
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "foam": {
+        "present": true,
+        "confidence": 0.65
+      },
+      "brown_turbid": {
+        "present": true,
+        "confidence": 0.9
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "pipe_flowing": {
+        "present": true,
+        "confidence": 0.95
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "note": "A submerged pipe is visibly discharging a turbid plume of sediment or effluent into a body of water, with scattered specks and light foam visible on the water surface."
+    },
+    "seconds": 5.15
+  },
+  "outfall-09": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.2
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "foam": {
+        "present": true,
+        "confidence": 0.85
+      },
+      "brown_turbid": {
+        "present": true,
+        "confidence": 0.95
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "pipe_flowing": {
+        "present": true,
+        "confidence": 0.99
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "note": "High-angle view showing multiple large pipes actively discharging into a turbid brown river next to an industrial site, generating white frothing and turbulence."
+    },
+    "seconds": 5.0
+  },
+  "fish-01": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "brown_turbid": {
+        "present": true,
+        "confidence": 0.9
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.99
+      },
+      "dead_fish": {
+        "present": true,
+        "confidence": 0.98
+      },
+      "note": "A deceased fish is visible caught on submerged branches in brown, turbid water."
+    },
+    "seconds": 5.89
+  },
+  "fish-02": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "brown_turbid": {
+        "present": true,
+        "confidence": 0.65
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.2
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "dead_fish": {
+        "present": true,
+        "confidence": 0.98
+      },
+      "note": "A single dead fish is visible floating at the surface of murky water with tree reflections."
+    },
+    "seconds": 4.42
+  },
+  "grey-01": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.6
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.8
+      },
+      "foam": {
+        "present": true,
+        "confidence": 0.99
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.8
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.7
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "note": "Extensive white foam patches cover large portions of the river surface."
+    },
+    "seconds": 4.6
+  },
+  "grey-02": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "foam": {
+        "present": true,
+        "confidence": 0.92
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.99
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.99
+      },
+      "note": "Rocky shoreline of a water body with white foam accumulated along the edge among stones and rocks."
+    },
+    "seconds": 5.5
+  },
+  "grey-03": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.4
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "dead_fish": {
+        "present": true,
+        "confidence": 0.98
+      },
+      "note": "Multiple dead fish are visible floating and submerged near the water edge. The water appears slightly murky or pale, but lighting/photo quality makes water color distinction uncertain."
+    },
+    "seconds": 4.1
+  },
+  "grey-04": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": true,
+        "confidence": 0.6
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.2
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.2
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.3
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "note": "A channel or ditch containing dark, murky standing or slow-moving water, heavily accumulated with solid waste and plastic litter. Lens flare or haze limits clarity."
+    },
+    "seconds": 4.41
+  },
+  "grey-05": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.8
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.8
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.85
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.75
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.75
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.85
+      },
+      "note": "A waterway and bank are visible with heavy accumulation of floating plastic debris and solid litter along the water edge. The water is dark and reflective."
+    },
+    "seconds": 5.0
+  },
+  "grey-06": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.2
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.15
+      },
+      "green": {
+        "present": true,
+        "confidence": 0.35
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "note": "River or stream bank with heavy solid waste accumulation; water surface has floating vegetation and reflects sky."
+    },
+    "seconds": 4.96
+  },
+  "turbid-01": {
+    "features": {
+      "shows_stream_or_outfall": false,
+      "image_usable": false,
+      "grey": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "note": "Satellite imagery of a river basin; ground-level indicators cannot be assessed."
+    },
+    "seconds": 4.91
+  },
+  "turbid-02": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": false,
+      "grey": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "note": "Image is a satellite or high-altitude aerial view of regional flooding and meandering rivers; resolution is insufficient to assess local stream pollution indicators."
+    },
+    "seconds": 5.48
+  },
+  "turbid-03": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": false,
+      "grey": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.01
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "brown_turbid": {
+        "present": true,
+        "confidence": 0.95
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.1
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.01
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.01
+      },
+      "note": "High-altitude aerial or satellite view of a large braided river system with heavy sediment load, unsuitable for ground-level stream assessment."
+    },
+    "seconds": 6.18
+  },
+  "turbid-04": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "brown_turbid": {
+        "present": true,
+        "confidence": 0.98
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.99
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.99
+      },
+      "note": "Extensive brown floodwaters inundating riverside structures and trees."
+    },
+    "seconds": 4.28
+  },
+  "turbid-05": {
+    "features": {
+      "shows_stream_or_outfall": false,
+      "image_usable": false,
+      "grey": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "note": "Image shows a road sign and bridge over a channel obscured by dense vegetation; no water surface or outfall is visible."
+    },
+    "seconds": 5.31
+  },
+  "turbid-06": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "sewage_fungus": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 1.0
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.98
+      },
+      "note": "Natural clear-flowing stream with a small riffle/drop, bordered by palm trees and riparian vegetation. The streambed is visible through clear water in the foreground."
+    },
+    "seconds": 11.43
+  },
+  "grey-07": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.65
+      },
+      "sewage_fungus": {
+        "present": true,
+        "confidence": 0.98
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "brown_turbid": {
+        "present": false,
+        "confidence": 0.9
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.95
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.99
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.99
+      },
+      "note": "Extensive fluffy, filamentous greyish-white microbial or fungal growth completely coating the stream bed, characteristic of sewage fungus."
+    },
+    "seconds": 4.86
+  },
+  "grey-08": {
+    "features": {
+      "shows_stream_or_outfall": true,
+      "image_usable": true,
+      "grey": {
+        "present": false,
+        "confidence": 0.3
+      },
+      "sewage_fungus": {
+        "present": true,
+        "confidence": 0.92
+      },
+      "foam": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "brown_turbid": {
+        "present": true,
+        "confidence": 0.75
+      },
+      "green": {
+        "present": false,
+        "confidence": 0.05
+      },
+      "pipe_flowing": {
+        "present": false,
+        "confidence": 0.0
+      },
+      "dead_fish": {
+        "present": false,
+        "confidence": 0.02
+      },
+      "note": "Extensive plumose, feathery brownish-grey filamentous growth covers the substrate and extends into the water column, typical of sewage fungus or silted bacterial/algal growth. A small insect is visible near the bottom edge."
+    },
+    "seconds": 5.39
+  }
+}
