@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+.env.*
+!.env.example
+node_modules/
+.next/
+data/cache/*
+!data/cache/openmeteo_*.json
+data/sourcebench_stdout.txt
+.DS_Store
