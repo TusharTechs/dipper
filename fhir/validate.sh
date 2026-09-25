@@ -15,4 +15,16 @@ JSON
 [ -f .build/validator_cli.jar ] || curl -sSL -o .build/validator_cli.jar https://github.com/hapifhir/org.hl7.fhir.core/releases/latest/download/validator_cli.jar
 java -jar .build/validator_cli.jar -version 4.0.1 -tx n/a \
   -ig .build/oah/fsh-generated/resources -ig ig/fsh-generated/resources \
-  -output .build/validation.json examples/*.bundle.json | tee .build/validation.txt | grep -E "^(Success|\*FAILURE\*|  Error|  Warning)|errors,.*warnings" | head -60
+  -output .build/validation.json examples/*.bundle.json > .build/validation.txt
+export BUNDLES="$(ls examples/*.bundle.json)"
+# Summarise per bundle from the machine-readable result, and fail (for CI) on any error.
+node -e '
+const r = require("./.build/validation.json"); let bad = 0; const names = process.env.BUNDLES.split("\n")
+for (const [k, e] of (r.entry ?? [{ resource: r }]).entries()) {
+  const oo = e.resource, n = (s) => oo.issue.filter((i) => i.severity === s).length
+  const file = names[k] ?? `bundle ${k + 1}`
+  const errors = n("error") + n("fatal"); bad += errors
+  console.log(`${errors ? "FAIL" : "ok  "} ${file}: ${errors} errors, ${n("warning")} warnings`)
+  for (const i of oo.issue.filter((i) => i.severity !== "information")) console.log(`     ${i.severity}: ${i.details?.text ?? i.diagnostics}`)
+}
+process.exit(bad ? 1 : 0)'

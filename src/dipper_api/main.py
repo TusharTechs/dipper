@@ -47,6 +47,7 @@ from dipper_engine.voi import recommend
 from dipper_engine.weather import fetch_context
 
 from .auth import ROLES, User, Users, current_user, demo_enabled, require, require_staff
+from .retention import maybe_purge
 from .store import Store
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -106,6 +107,7 @@ async def lifespan(_: FastAPI):
         _reach_of.update(reach_of)
         _scenario_truth.update(truth)
         users.purge_expired()
+    maybe_purge(MEDIA_DIR, every_s=0)
     log.info(json.dumps({"event": "startup", "cases": len(_cases), "demo": demo_enabled()}))
     yield
 
@@ -122,12 +124,23 @@ app.add_middleware(CORSMiddleware, allow_origins=[o for o in os.getenv("DIPPER_C
 RATE_LIMITS = {"/v1/signals": (30, 60), "/v1/signals/photo": (10, 60), "/v1/auth/demo": (20, 60),
                "/v1/context/weather": (30, 60)}
 _hits: dict[tuple[str, str], deque] = defaultdict(deque)
+# Number of reverse proxies in front of the app. X-Forwarded-For is client-controlled, so it is only used
+# when a proxy is declared, and then only the entry that proxy appended (counted from the right).
+PROXY_HOPS = int(os.getenv("DIPPER_PROXY_HOPS", "0"))
 
 
 def _client_key(request: Request) -> str:
-    ip = (request.headers.get("x-forwarded-for", "").split(",")[0].strip() or
-          (request.client.host if request.client else "unknown"))
+    ip = request.client.host if request.client else "unknown"
+    xff = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+    if PROXY_HOPS and xff:
+        ip = xff[-PROXY_HOPS] if len(xff) >= PROXY_HOPS else xff[0]
     return hashlib.sha256(ip.encode()).hexdigest()[:16]  # never keep raw IPs
+
+
+def _prune_hits(now: float) -> None:
+    """Drop idle rate-limit buckets so memory stays bounded however many clients call."""
+    for key in [k for k, q in _hits.items() if not q or now - q[-1] > 120]:
+        del _hits[key]
 
 
 @app.middleware("http")
@@ -137,8 +150,10 @@ async def _edge(request: Request, call_next):
     limit = RATE_LIMITS.get(path) if request.method == "POST" or path == "/v1/context/weather" else None
     if limit:
         n, window = limit
-        q = _hits[(path, _client_key(request))]
         now = time.monotonic()
+        if len(_hits) > 5000:
+            _prune_hits(now)
+        q = _hits[(path, _client_key(request))]
         while q and now - q[0] > window:
             q.popleft()
         if len(q) >= n:
@@ -261,8 +276,10 @@ class CitizenCheckIn(BaseModel):
 
 
 class ActionIn(BaseModel):
-    type: Literal["dispatch", "lab_request", "notify_utility", "advisory", "dismiss", "fixed", "verified", "close"]
+    type: Literal["dispatch", "lab_request", "notify_utility", "advisory", "lift_advisory", "dismiss", "fixed",
+                  "follow_up", "verified", "close"]
     note: str | None = Field(None, max_length=500, description="Optional reason, stored in the audit trail")
+    clean: StrictBool | None = Field(None, description="follow_up only: was the source clean after the fix?")
 
 
 class DemoIn(BaseModel):
@@ -276,7 +293,8 @@ class SimIn(BaseModel):
     seed: int = 1
 
 
-ACTION_ROLE = {"advisory": "public_health", "notify_utility": "inspector", "dispatch": "inspector",
+ACTION_ROLE = {"advisory": "public_health", "lift_advisory": "public_health", "follow_up": "inspector",
+               "notify_utility": "inspector", "dispatch": "inspector",
                "lab_request": "inspector", "dismiss": "inspector", "fixed": "inspector", "verified": "inspector",
                "close": "inspector"}
 CHECK_ROLE = {"instream_look": "citizen", "outfall_look": "citizen", "ammonium_strip": "trained", "lab_ecoli": "inspector"}
@@ -395,6 +413,7 @@ def post_signal_photo(
     else:
         MEDIA_DIR.mkdir(parents=True, exist_ok=True)
         (MEDIA_DIR / f"{sha}.jpg").write_bytes(red.jpeg)
+        maybe_purge(MEDIA_DIR)
         try:
             pf = extract(red.jpeg)  # outside the lock: a slow model call must not block other requests
             pobs = to_observation(pf, node, observed_at=now + timedelta(seconds=1))
@@ -462,12 +481,11 @@ def citizen_case(case_id: str, lat: float | None = Query(None, ge=-90, le=90),
                        "outfall": g.candidate(r.check.candidate_id).label if r.check.candidate_id else None,
                        "walk_m": round(walk) if walk is not None else None,
                        "if_clean": r.if_negative.zone, "if_polluted": r.if_positive.zone}
-        advisories = [a for a in c.actions if a.type == "advisory"]
         return {"id": c.id, "reach": g.name, "status": c.status,
                 "reports": sum(1 for o in c.belief.observations if o.kind == "report" and o.role == "citizen"),
                 "checks": sum(1 for o in c.belief.observations if o.kind != "report"),
                 "mission": mission,
-                "advisory": c.advisory_draft()["text"] if advisories else None,
+                "advisory": c.advisory_draft()["text"] if c.advisory_active else None,
                 "history": [{"at": a.at.isoformat(), "type": a.type} for a in c.actions]}
 
 
@@ -495,7 +513,7 @@ def public_advisories() -> list[dict]:
     with _lock:
         for c in _cases.values():
             adv = [a for a in c.actions if a.type == "advisory"]
-            if not adv or c.status in ("closed", "dismissed", "verified"):
+            if not c.advisory_active:
                 continue
             top, _ = c.belief.top_source()
             g = c.graph
@@ -609,10 +627,9 @@ def post_action(case_id: str, body: ActionIn, user: User = Depends(require_staff
         c = get_case(case_id)
         if body.type == "notify_utility" and c.status != "localized":
             raise HTTPException(409, "hand-off is available once one entry point reaches the localization threshold")
-        if body.type == "advisory" and any(a.type == "advisory" for a in c.actions):
-            raise HTTPException(409, "an advisory is already published for this case")
         payload = ({"note": body.note} if body.note else {}) | (
-            {"text": c.advisory_draft()["text"]} if body.type == "advisory" else {})
+            {"text": c.advisory_draft()["text"]} if body.type == "advisory" else {}) | (
+            {"clean": body.clean} if body.type == "follow_up" else {})
         try:
             a = c.act(body.type, _signed(user), payload)
         except ValueError as exc:
@@ -730,6 +747,22 @@ def sim_run(body: SimIn, user: User = Depends(require("admin"))) -> dict:
 
 site = FastAPI(title="Dipper", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 site.mount("/api", app)
+TILES = "https://tiles.openfreemap.org"
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+       f"img-src 'self' data: blob: {TILES}; connect-src 'self' {TILES}; worker-src 'self' blob:; child-src blob:; "
+       "font-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'")
+
+
+@site.middleware("http")
+async def _site_headers(request: Request, call_next):
+    response = await call_next(request)
+    if not request.url.path.startswith("/api/"):
+        response.headers.update({"Content-Security-Policy": CSP, "X-Content-Type-Options": "nosniff",
+                                 "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY",
+                                 "Permissions-Policy": "geolocation=(self), camera=(self)"})
+    response.headers["Strict-Transport-Security"] = "max-age=31536000"
+    return response
+
 if WEB_DIST.exists():
     site.mount("/assets", StaticFiles(directory=WEB_DIST / "assets"), name="assets")
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import CaseMap from './CaseMap'
+import CaseMap from './Map'
 import { api, type PublicAdvisory } from './api'
 
 export default function PublicMap() {

@@ -37,13 +37,9 @@ def main() -> None:
         print(f"Created {user.name} ({user.role}), id {user.id}")
         print(f"Token (shown once, store it securely): {token}")
     elif args.cmd == "purge-media":
-        import time
+        from dipper_api.retention import purge_media
         media = Path(os.getenv("DIPPER_MEDIA", str(ROOT / "data" / "media")))
-        cutoff, removed = time.time() - args.days * 86400, 0
-        for f in media.glob("*.jpg") if media.exists() else []:
-            if f.stat().st_mtime < cutoff:
-                f.unlink()
-                removed += 1
+        removed = purge_media(media, args.days)
         print(f"Removed {removed} photos older than {args.days} days from {media}")
     else:
         print(f"Removed {users.purge_expired()} expired tokens")

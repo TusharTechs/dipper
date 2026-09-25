@@ -175,6 +175,31 @@ def test_rate_limit_on_public_reports(api):
     assert codes.count(429) >= 1 and codes[0] == 200
 
 
+def test_spoofed_forwarded_for_does_not_escape_the_rate_limit(api, monkeypatch):
+    main, client = api
+    nd = _node(main)
+    body = {"reach_id": "coimbra-ribeira-de-coselhas", "lat": nd.lat, "lon": nd.lon, "features": {}}
+    codes = [client.post("/v1/signals", json=body, headers={"X-Forwarded-For": f"10.0.0.{i}"}).status_code
+             for i in range(32)]
+    assert 429 in codes
+    # behind one declared proxy, the proxy-appended entry identifies the client
+    main._hits.clear()
+    monkeypatch.setattr(main, "PROXY_HOPS", 1)
+    codes = [client.post("/v1/signals", json=body, headers={"X-Forwarded-For": f"6.6.6.6, 10.0.0.{i}"}).status_code
+             for i in range(32)]
+    assert 429 not in codes
+
+
+def test_single_origin_site_serves_api_and_sets_a_content_security_policy(api):
+    main, _ = api
+    with TestClient(main.site) as site:
+        assert site.get("/api/health").status_code == 200
+        if main.WEB_DIST.exists():
+            page = site.get("/")
+            assert "default-src 'self'" in page.headers["content-security-policy"]
+            assert page.headers["x-frame-options"] == "DENY"
+
+
 def test_security_headers_and_request_id(api):
     main, client = api
     r = client.get("/health")
@@ -244,3 +269,45 @@ def test_parallel_writes_keep_memory_and_database_consistent(api):
     mem = len(main._cases[cid].belief.observations)
     db = len([h for h in client.get(f"/v1/cases/{cid}/history", headers=inv).json() if h["type"] == "observation"])
     assert mem == db == 3 + 40
+
+
+def test_old_photos_are_deleted_by_the_retention_policy(api, tmp_path):
+    import time
+    from dipper_api.retention import purge_media
+    media = tmp_path / "m"
+    media.mkdir()
+    old, new = media / "old.jpg", media / "new.jpg"
+    old.write_bytes(b"x"); new.write_bytes(b"x")
+    past = time.time() - 31 * 86400
+    os.utime(old, (past, past))
+    assert purge_media(media, 30) == 1 and not old.exists() and new.exists()
+
+
+def test_a_fix_is_verified_only_after_a_clean_follow_up_and_advisories_can_be_lifted(api):
+    main, client = api
+    inv, ph = token(client, "inspector"), token(client, "public_health")
+    cid = client.post("/v1/scenarios/c014", headers=inv).json()["id"]
+    for _ in range(6):
+        client.post(f"/v1/scenarios/{cid}/autostep", headers=inv)
+    act = lambda body, who=inv: client.post(f"/v1/cases/{cid}/actions", json=body, headers=who)
+    assert act({"type": "advisory"}, ph).status_code == 200
+    assert len(client.get("/v1/public/advisories").json()) == 1
+    act({"type": "notify_utility"}); act({"type": "fixed"})
+    assert act({"type": "verified"}).status_code == 409                       # no follow-up yet
+    assert act({"type": "follow_up"}).status_code == 409                      # result is required
+    assert act({"type": "follow_up", "clean": False}).json()["status"] == "handed_off"   # fix failed
+    act({"type": "fixed"})
+    assert act({"type": "follow_up", "clean": True}).status_code == 200
+    assert act({"type": "verified"}).json()["status"] == "verified"
+    # the advisory stays up until public health lifts it
+    assert len(client.get("/v1/public/advisories").json()) == 1
+    assert act({"type": "lift_advisory"}).status_code == 403                  # inspector may not
+    assert act({"type": "lift_advisory"}, ph).status_code == 200
+    assert client.get("/v1/public/advisories").json() == []
+    assert client.get(f"/v1/citizen/cases/{cid}").json()["advisory"] is None
+    flag = [e["resource"] for e in client.get(f"/v1/cases/{cid}/fhir", headers=inv).json()["entry"]
+            if e["resource"]["resourceType"] == "Flag"][0]
+    assert flag["status"] == "inactive" and "end" in flag["period"]
+    # the audit trail survives a restart with the same state
+    reloaded, _, _ = main.Store(Path(os.environ["DIPPER_DB"])).load_all(main.reach)
+    assert reloaded[cid].status == "verified" and not reloaded[cid].advisory_active

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useAnnounce, useAuth } from './App'
-import CaseMap from './CaseMap'
+import CaseMap from './Map'
 import { api, pct, STATUS_LABEL, type CaseView, type GeoJSON, type Recommendation } from './api'
 
 type Tab = 'investigation' | 'advisory' | 'handoff' | 'timeline'
@@ -76,10 +76,22 @@ export default function Workspace({ caseId }: { caseId: string }) {
               (v) => `Case handed to the utility. ${summary(v)}`)}>Hand off to utility</button>)}
           {inspector && view.status === 'handed_off' && (
             <button disabled={busy} onClick={() => run(() => api.action(view.id, 'fixed'), () => 'Marked as fixed')}>Mark fixed</button>)}
-          {inspector && view.status === 'fixed' && (
-            <button disabled={busy} onClick={() => run(() => api.action(view.id, 'verified'), () => 'Fix verified')}>Verify fix</button>)}
+          {inspector && view.status === 'fixed' && view.fix_confirmed_clean && (
+            <button className="primary" disabled={busy} onClick={() => run(() => api.action(view.id, 'verified'), () => 'Fix verified')}>Verify fix</button>)}
         </div>
       </div>
+      {inspector && view.status === 'fixed' && !view.fix_confirmed_clean && (
+        <section className="follow-up" aria-labelledby="follow-up-h">
+          <h2 id="follow-up-h">Follow-up after the fix</h2>
+          <p>Check {view.top_source.label} again, ideally in dry weather. Is it clean now?</p>
+          <div className="row" role="group" aria-label={`Follow-up result at ${view.top_source.label}`}>
+            <button disabled={busy} onClick={() => run(() => api.action(view.id, 'follow_up', { clean: true }),
+              () => 'Follow-up recorded: clean. You can now verify the fix.')}>Clean</button>
+            <button className="warn" disabled={busy} onClick={() => run(() => api.action(view.id, 'follow_up', { clean: false }),
+              () => 'Follow-up recorded: still polluted. The case is back with the utility.')}>Still polluted</button>
+          </div>
+          <p className="muted small">A fix counts as verified only after a clean follow-up. Follow-ups are kept apart from the source search, which explains the discharge that was found.</p>
+        </section>)}
       {error && <p className="error bar" role="alert">{error}</p>}
 
       <div className="tabs" role="tablist" aria-label="Case views">
@@ -183,16 +195,20 @@ export default function Workspace({ caseId }: { caseId: string }) {
         </div>)}
 
       {tab === 'advisory' && <AdvisoryPanel view={view} canApprove={publicHealth} busy={busy}
-        onApprove={() => run(() => api.action(view.id, 'advisory'), () => 'Advisory published')} />}
+        onApprove={() => run(() => api.action(view.id, 'advisory'), () => 'Advisory published')}
+        onLift={() => run(() => api.action(view.id, 'lift_advisory'), () => 'Advisory lifted and removed from the public map')} />}
       {tab === 'handoff' && <HandoffPanel view={view} canPush={inspector && !!config?.fhir_server} />}
       {tab === 'timeline' && <TimelinePanel view={view} />}
     </div>
   )
 }
 
-function AdvisoryPanel({ view, canApprove, busy, onApprove }: { view: CaseView; canApprove: boolean; busy: boolean; onApprove: () => void }) {
+function AdvisoryPanel({ view, canApprove, busy, onApprove, onLift }:
+  { view: CaseView; canApprove: boolean; busy: boolean; onApprove: () => void; onLift: () => void }) {
   const d = view.advisory_draft
-  const published = view.actions.find((a) => a.type === 'advisory')
+  const published = [...view.actions].reverse().find((a) => a.type === 'advisory')
+  const lifted = [...view.actions].reverse().find((a) => a.type === 'lift_advisory')
+  const fixed = ['verified', 'fixed'].includes(view.status)
   const tiers: [string, string, string][] = [
     ['Observed', 'what people saw, smelled or measured', d.tiers.observed],
     ['Inferred', "the model's estimate, with its probability", d.tiers.inferred],
@@ -209,8 +225,12 @@ function AdvisoryPanel({ view, canApprove, busy, onApprove }: { view: CaseView; 
         <section className="card" lang="en"><h3>Public text · English</h3><p>{d.text.en}</p></section>
         <section className="card" lang="pt"><h3>Texto público · Português</h3><p>{d.text.pt}</p></section>
       </div>
-      {published ? (
+      {view.advisory_active && published ? (<>
         <p className="done">Published {new Date(published.at).toLocaleString()} by {published.approver}. <a href="#/public">See the public advisory map</a>.</p>
+        {canApprove && <div className="row"><button disabled={busy} onClick={onLift}>Lift advisory</button>
+          <span className="muted small">{fixed ? 'The fix has been reported. Lift the advisory once you are satisfied the water is safe.' : 'Removes it from the public map.'}</span></div>}
+      </>) : lifted && published ? (
+        <p className="done">Lifted {new Date(lifted.at).toLocaleString()} by {lifted.approver}. It is no longer on the public map.</p>
       ) : canApprove ? (
         <div className="row"><button className="primary" disabled={busy} onClick={onApprove}>Approve and publish advisory</button>
           <span className="muted small">{d.suggested ? 'The evidence supports an advisory.' : 'The evidence does not yet call for one; you may still publish.'}</span></div>

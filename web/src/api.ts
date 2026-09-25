@@ -30,7 +30,7 @@ export interface AdvisoryDraft {
 export interface CaseView {
   id: string; reach: string; city: string; status: string; opened_at: string; simulated?: boolean
   context: { regime: string; summary: string; rain_48h_mm: number | null; tmax_c: number | null; dry_days: number | null }
-  hypotheses: Hypothesis[]; p_harmful: number; advisory_suggested: boolean; stakes: number
+  hypotheses: Hypothesis[]; p_harmful: number; advisory_suggested: boolean; advisory_active: boolean; fix_confirmed_clean: boolean; stakes: number
   top_source: { id: string; label: string; p: number }; outside_or_unmapped: number; diffuse: number
   sources: Source[]; ribbon: RibbonPoint[]; ledger: LedgerEntry[]; observations: ObservationView[]
   unknowns: string[]; exposure: Exposure[]; recommendations: Recommendation[]; actions: Action[]
@@ -115,7 +115,7 @@ export const api = {
   autostep: (id: string) => req<{ performed: Recommendation; result: string; case: CaseView }>(`/v1/scenarios/${enc(id)}/autostep`, post()),
   check: (id: string, body: { check_type: CheckType; positive: boolean; node_id?: string | null; candidate_id?: string | null }) =>
     req<CaseView>(`/v1/cases/${enc(id)}/checks`, post(body)),
-  action: (id: string, type: string, note?: string) => req<CaseView>(`/v1/cases/${enc(id)}/actions`, post({ type, note })),
+  action: (id: string, type: string, extra?: { note?: string; clean?: boolean }) => req<CaseView>(`/v1/cases/${enc(id)}/actions`, post({ type, ...extra })),
   signal: (body: { reach_id: string; lat: number; lon: number; features: Record<string, boolean> }) =>
     req<{ case_id: string; snap_distance_m: number; status: string }>('/v1/signals', post({ ...body, observer: deviceId() })),
   citizenCase: (id: string, near?: { lat: number; lon: number } | null) =>

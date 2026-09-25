@@ -1,6 +1,10 @@
 import { useEffect, useRef } from 'react'
-import { LngLatBounds, Map as MLMap, NavigationControl, type GeoJSONSource, type MapMouseEvent } from 'maplibre-gl'
+import { LngLatBounds, Map as MLMap, NavigationControl, setWorkerUrl, type GeoJSONSource, type MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
+
+// Production builds do not follow MapLibre's own relative worker URL, so hand it the bundled worker.
+setWorkerUrl(workerUrl)
 import type { CaseView, GeoJSON, Recommendation } from './api'
 
 const STYLE = 'https://tiles.openfreemap.org/styles/positron'
@@ -16,9 +20,11 @@ interface Props {
   height?: number | string
   label?: string
   stretches?: [number, number][][]
+  /** Citizen maps show the stream and nearby places, never the suspected outfalls. */
+  citizen?: boolean
 }
 
-function layersData(reach: GeoJSON, view: CaseView | null | undefined, target: Recommendation | null | undefined) {
+function layersData(reach: GeoJSON, view: CaseView | null | undefined, target: Recommendation | null | undefined, citizen = false) {
   const pNode = new Map<string, number>((view?.ribbon ?? []).map((r) => [r.node_id, r.p_polluted]))
   const nodes = new Map<string, [number, number]>()
   for (const f of reach.features) if (f.properties.role === 'node') nodes.set(f.properties.id, f.geometry.coordinates)
@@ -28,6 +34,7 @@ function layersData(reach: GeoJSON, view: CaseView | null | undefined, target: R
     id: f.properties.id, label: f.properties.label, p: 0, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }))).map((s: any) => ({
     type: 'Feature', geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
     properties: { id: s.id, p: s.p, text: view ? `${s.label} ${Math.round(s.p * 100)}%` : s.label } })) }
+  if (citizen) cands.features = []
   const places: FC = { type: 'FeatureCollection', features: reach.features.filter((f) => f.properties.role === 'place') }
   const obs: FC = { type: 'FeatureCollection', features: (view?.observations ?? []).map((o) => ({
     type: 'Feature', geometry: { type: 'Point', coordinates: [o.lon, o.lat] },
@@ -43,7 +50,7 @@ function layersData(reach: GeoJSON, view: CaseView | null | undefined, target: R
   return { edges, cands, places, obs, tgt }
 }
 
-export default function CaseMap({ reach, view, target, picked, onPick, height = '100%', label, stretches }: Props) {
+export default function CaseMap({ reach, view, target, picked, onPick, height = '100%', label, stretches, citizen = false }: Props) {
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<MLMap | null>(null)
   const ready = useRef(false)
@@ -78,6 +85,8 @@ export default function CaseMap({ reach, view, target, picked, onPick, height = 
       m.addLayer({ id: 'obs', type: 'circle', source: 'obs', paint: { 'circle-radius': 5.5, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2,
         'circle-color': ['match', ['get', 'cls'], 'report', '#9A5A06', 'positive', '#B3261E', '#4F7A22'] } })
       m.addLayer({ id: 'pick', type: 'circle', source: 'pick', paint: { 'circle-radius': 8, 'circle-color': '#0E6B6B', 'circle-stroke-color': '#fff', 'circle-stroke-width': 3 } })
+      // Start with the attribution collapsed to its (i) button so it does not cover small maps.
+      el.current?.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show')
       ready.current = true
       pending.current?.()
       pending.current = null
@@ -86,6 +95,9 @@ export default function CaseMap({ reach, view, target, picked, onPick, height = 
     map.current = m
     return () => { m.remove(); map.current = null; ready.current = false }
   }, [])
+
+  // A citizen mission map centres on the spot to visit; every other map fits the whole reach.
+  const focus = citizen && !onPick && picked ? [picked.lat, picked.lon] as const : null
 
   // Fit to the reach once it is known.
   useEffect(() => {
@@ -98,11 +110,12 @@ export default function CaseMap({ reach, view, target, picked, onPick, height = 
       return
     }
     if (!reach) return
+    if (focus) { m.jumpTo({ center: [focus[1], focus[0]], zoom: 14.5 }); return }  // a mission: show where to go
     const pts = reach.features.filter((f) => f.properties.role === 'node').map((f) => f.geometry.coordinates as [number, number])
     if (!pts.length) return
     const b = pts.reduce((acc, p) => acc.extend(p), new LngLatBounds(pts[0], pts[0]))
     m.fitBounds(b, { padding: 50, duration: 0 })
-  }, [reach, stretches])
+  }, [reach, stretches, focus?.[0], focus?.[1]])
 
   useEffect(() => {
     const m = map.current
@@ -111,7 +124,7 @@ export default function CaseMap({ reach, view, target, picked, onPick, height = 
       ;(m.getSource('stretch') as GeoJSONSource).setData({ type: 'FeatureCollection', features: (stretches ?? []).map((c) => (
         { type: 'Feature', geometry: { type: 'LineString', coordinates: c }, properties: {} })) } as any)
       if (!reach) return
-      const d = layersData(reach, view, target)
+      const d = layersData(reach, view, target, citizen)
       ;(m.getSource('edges') as GeoJSONSource).setData(d.edges as any)
       ;(m.getSource('cands') as GeoJSONSource).setData(d.cands as any)
       ;(m.getSource('places') as GeoJSONSource).setData(d.places as any)
@@ -123,7 +136,7 @@ export default function CaseMap({ reach, view, target, picked, onPick, height = 
     }
     if (ready.current) apply()
     else pending.current = apply
-  }, [reach, view, target, picked, stretches])
+  }, [reach, view, target, picked, stretches, citizen])
 
   return <div ref={el} className="map" style={{ height }} role="region" aria-label={label ?? 'Map of the stream'} />
 }

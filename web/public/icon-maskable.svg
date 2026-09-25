@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <title>Dipper</title>
-  <rect width="64" height="64" rx="15" fill="#157F78"/>
+  <rect width="64" height="64" fill="#157F78"/>
+  <g transform="translate(6.4 6.4) scale(.8)">
     <ellipse cx="32" cy="52.6" rx="9.6" ry="2.7" fill="none" stroke="#BFE9E4" stroke-width="2.4"/>
     <ellipse cx="32" cy="53.2" rx="19.5" ry="5.3" fill="none" stroke="#BFE9E4" stroke-width="2" opacity=".55"/>
     <path d="M22.2 21.2 L12.2 12.9 Q11.3 11.3 13.2 11.6 L26.6 17.2 Z" fill="#0F1E24"/>
@@ -9,4 +10,5 @@
     <path clip-path="url(#pinclip)" d="M49 23.6 C45.6 25.3 41.6 25.6 38.3 24.9 C36.4 30.2 36.7 36.6 38.6 43.6 L49 43.6 Z" fill="#FFFFFF"/>
     <path d="M46.4 19.4 L54.6 21.7 L47.1 24.3 Z" fill="#0F1E24"/>
     <circle cx="41.2" cy="19.3" r="1.9" fill="#FFFFFF"/>
+  </g>
 </svg>

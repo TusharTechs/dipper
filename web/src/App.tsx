@@ -74,7 +74,7 @@ export default function App() {
         <a className="skip" href="#main">Skip to content</a>
         <div className="app">
           <header className="top" role="banner">
-            <a className="brand" href="#/citizen" aria-label="Dipper home">Dipper</a>
+            <a className="brand" href="#/citizen" aria-label="Dipper home"><img src="/icon.svg" alt="" width="30" height="30" />Dipper</a>
             <nav aria-label="Main">
               <ul>{nav.map((n) => (
                 <li key={n.page}><a href={n.href} aria-current={route.page === n.page ? 'page' : undefined}
@@ -82,7 +82,7 @@ export default function App() {
             </nav>
             <span className="spacer" />
             {config?.demo && <span className="demo-badge" title="Demo mode: scenario replay and demo sign-in are enabled">Demo</span>}
-            {user && <span className="who">{user.name}<span className="muted"> · {user.role.replace('_', ' ')}</span>
+            {user && route.page === 'ops' && <span className="who">{user.name}<span className="muted"> · {user.role.replace('_', ' ')}</span>
               <button className="small" onClick={auth.signOut}>Sign out</button></span>}
           </header>
           <main id="main" tabIndex={-1}>{body}</main>

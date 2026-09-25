@@ -47,10 +47,12 @@ class Case:
         "dispatch": {"open", "localizing", "localized"}, "lab_request": {"open", "localizing", "localized", "handed_off"},
         "advisory": {"open", "localizing", "localized", "handed_off", "fixed"},
         "notify_utility": {"localized"}, "dismiss": {"open", "localizing", "localized"},
-        "fixed": {"handed_off"}, "verified": {"fixed"}, "close": {"verified", "dismissed", "handed_off", "fixed"},
+        "fixed": {"handed_off"}, "follow_up": {"fixed"}, "verified": {"fixed"},
+        "close": {"verified", "dismissed", "handed_off", "fixed"},
+        "lift_advisory": {"open", "localizing", "localized", "handed_off", "fixed", "verified", "closed", "dismissed"},
         "fhir_push": {"open", "localizing", "localized", "handed_off", "fixed", "verified", "closed", "dismissed"},
     }
-    NEEDS_APPROVER = {"advisory", "notify_utility", "dismiss", "fixed", "verified", "close"}
+    NEEDS_APPROVER = {"advisory", "lift_advisory", "notify_utility", "dismiss", "fixed", "follow_up", "verified", "close"}
     TERMINAL = {"closed", "dismissed", "verified"}
 
     def act(self, type_: str, approver: str | None, payload: dict[str, Any] | None = None,
@@ -62,6 +64,15 @@ class Case:
             raise PermissionError(f"{type_} requires a human approver")
         if self.status not in self.ALLOWED[type_]:
             raise ValueError(f"{type_.replace('_', ' ')} is not possible while the case is {self.status.replace('_', ' ')}")
+        payload = payload or {}
+        if type_ == "follow_up" and not isinstance(payload.get("clean"), bool):
+            raise ValueError("a follow-up records whether the source was clean after the fix")
+        if type_ == "verified" and not self.fix_confirmed_clean:
+            raise ValueError("record a clean follow-up check at the source after the fix first")
+        if type_ == "advisory" and self.advisory_active:
+            raise ValueError("an advisory is already published for this case")
+        if type_ == "lift_advisory" and not self.advisory_active:
+            raise ValueError("there is no published advisory to lift")
         snapshot = {"status_before": self.status, "p_harmful": round(self.belief.p_harmful(), 4),
                     "top_source": list(self.belief.top_source()), "model_version": "0.2.0"}
         a = Action(type=type_, at=at or datetime.now(timezone.utc), approver=approver,
@@ -69,7 +80,34 @@ class Case:
         self.actions.append(a)
         self._status = {"notify_utility": "handed_off", "fixed": "fixed", "verified": "verified",
                         "close": "closed", "dismiss": "dismissed"}.get(type_, self._status)
+        if type_ == "follow_up" and not payload["clean"]:
+            self._status = "handed_off"  # the fix did not work: back to the utility
         return a
+
+    # Follow-ups after a fix are kept out of the belief: they describe the stream after the repair, while the
+    # belief explains the discharge that was found.
+    @property
+    def fix_confirmed_clean(self) -> bool:
+        """True if the latest follow-up after the latest fix found the source clean."""
+        after_fix = False
+        clean = False
+        for a in self.actions:
+            if a.type == "fixed":
+                after_fix, clean = True, False
+            elif a.type == "follow_up" and after_fix:
+                clean = bool(a.payload.get("clean"))
+        return after_fix and clean
+
+    @property
+    def advisory_active(self) -> bool:
+        """A published advisory that has not been lifted and whose case is still open to the public."""
+        active = False
+        for a in self.actions:
+            if a.type == "advisory":
+                active = True
+            elif a.type == "lift_advisory":
+                active = False
+        return active and self.status not in ("closed", "dismissed")
 
     @property
     def status(self) -> str:
@@ -163,6 +201,7 @@ class Case:
             "hypotheses": b.hypothesis_table(),
             "p_harmful": round(p_harm, 4),
             "advisory_suggested": should_advise(p_harm, self.stakes, b.params),
+            "advisory_active": self.advisory_active, "fix_confirmed_clean": self.fix_confirmed_clean,
             "stakes": round(self.stakes, 3),
             "top_source": {"id": b.top_source()[0], "label": labels[b.top_source()[0]], "p": b.top_source()[1]},
             "outside_or_unmapped": round(ms[OUTSIDE], 4), "diffuse": round(ms[NONE], 4),

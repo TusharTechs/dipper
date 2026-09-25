@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAnnounce } from './App'
-import CaseMap from './CaseMap'
+import CaseMap from './Map'
 import { api, ApiError, DEFAULT_REACH, type CitizenCase, type GeoJSON, type PhotoResult, type ReachInfo } from './api'
 
 type Lang = 'pt' | 'en'
@@ -163,7 +163,6 @@ export default function Citizen() {
     <div className="citizen" lang={lang}>
       <div className="phone">
         <div className="phone-head">
-          <strong>Dipper</strong>
           <div className="lang" role="group" aria-label="Language / Idioma">
             {(['pt', 'en'] as Lang[]).map((l) => (
               <button key={l} lang={l} aria-pressed={l === lang} className={l === lang ? 'on' : ''} onClick={() => setLang(l)}>{l === 'pt' ? 'Português' : 'English'}</button>))}
@@ -181,7 +180,7 @@ export default function Citizen() {
           <h2>{t.where}</h2>
           <button className="wide" onClick={locate}>{t.useLoc}</button>
           <p className="muted small" id="tap-hint">{t.tapHint}</p>
-          <div className="minimap"><CaseMap reach={reach} picked={picked} onPick={(lat, lon) => { setPicked({ lat, lon }); setPickedKey(''); announce(t.picked) }} height={220}
+          <div className="minimap"><CaseMap reach={reach} citizen picked={picked} onPick={(lat, lon) => { setPicked({ lat, lon }); setPickedKey(''); announce(t.picked) }} height={220}
             label={t.tapHint} /></div>
           <label htmlFor="landmark">{t.landmark}</label>
           <select id="landmark" value={pickedKey} onChange={(e) => {
@@ -191,7 +190,10 @@ export default function Citizen() {
             {marks.map((m) => <option key={m.key} value={m.key}>{m.place ? `${t.near} ${m.place}`
               : `${m.km!.toFixed(1)} ${t.up}${m.nearPlace ? ` (${t.near} ${m.nearPlace})` : ''}`}</option>)}
           </select>
-          {picked && <p className="muted small" role="status">{t.picked}: {picked.lat.toFixed(5)}, {picked.lon.toFixed(5)}</p>}
+          {picked && <p className="muted small" role="status">{t.picked}: {(() => {
+            const m = marks.find((x) => x.key === pickedKey)
+            return m ? (m.place ? `${t.near} ${m.place}` : `${m.km!.toFixed(1)} ${t.up}`) : `${picked.lat.toFixed(5)}, ${picked.lon.toFixed(5)}`
+          })()}</p>}
           <fieldset className="toggles-set" disabled={cleanReport}>
             <legend>{t.what}</legend>
             <div className="toggles">{FEATURES.map((f) => (
@@ -227,7 +229,7 @@ export default function Citizen() {
               <p>{t.missionHelp}</p>
               <p className="mission-where">{t.go} <strong>{missionWhere}</strong>{summary.mission.walk_m != null && summary.mission.walk_m > 30
                 && <span className="muted"> · {t.about} {summary.mission.walk_m < 1000 ? `${Math.round(summary.mission.walk_m / 10) * 10} m` : `${(summary.mission.walk_m / 1000).toFixed(1)} km`} {t.fromYou}</span>}</p>
-              <div className="minimap"><CaseMap reach={reach} picked={{ lat: summary.mission.lat, lon: summary.mission.lon }} height={200}
+              <div className="minimap"><CaseMap reach={reach} citizen picked={{ lat: summary.mission.lat, lon: summary.mission.lon }} height={200}
                 label={`${t.go} ${missionWhere}`} /></div>
               <p>{t.lookFor}</p>
               <div className="row">

@@ -249,12 +249,15 @@ class _Builder:
             })
             targets.append(sr)
         advisories = [a for a in case.actions if a.type == "advisory"]
+        lifts = [a for a in case.actions if a.type == "lift_advisory"]
         if view["advisory_suggested"] or advisories:
             flag = self.add({
                 "resourceType": "Flag", "id": f"{self.pfx}flag-{_slug(case.id)}",
                 "meta": self.meta(f"{DIP}/StructureDefinition/dipper-site-flag"),
-                "status": "active", "code": _cc(DIP_CS, "contact-advisory", "Avoid contact with the water"),
-                "subject": {"reference": reach}, "period": {"start": (advisories[0].at if advisories else self.now).isoformat()},
+                "status": "active" if case.advisory_active or not advisories else "inactive",
+                "code": _cc(DIP_CS, "contact-advisory", "Avoid contact with the water"),
+                "subject": {"reference": reach}, "period": {"start": (advisories[0].at if advisories else self.now).isoformat()}
+                | ({"end": lifts[-1].at.isoformat()} if advisories and not case.advisory_active and lifts else {}),
                 "author": {"reference": device},
             })
             for k, a in enumerate(advisories):
