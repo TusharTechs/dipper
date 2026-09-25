@@ -434,7 +434,7 @@ def auth_me(user: User = Depends(require_staff)) -> dict:
 @app.get("/v1/config")
 def config() -> dict:
     return {"demo": demo_enabled(), "roles": ROLES, "demo_reach": DEMO_REACH if demo_enabled() else None,
-            "fhir_server": bool(os.getenv("FHIR_BASE_URL"))}
+            "fhir_server": bool(os.getenv("FHIR_BASE_URL")), "photo_analysis": vision_provider() != "none"}
 
 
 # ---- reaches ------------------------------------------------------------------------------
@@ -561,6 +561,18 @@ def post_signal_photo(
         answers = {str(k): v for k, v in parsed.items()}
     except ValueError as exc:
         raise HTTPException(422, "features must be a JSON object of true/false answers") from exc
+    if vision_provider() == "none":
+        # Photo analysis is off: record the answers, and never process or keep the photo.
+        now = datetime.now(timezone.utc)
+        case, node, dist, index = _record_report(reach_id, lat, lon, answers, observer, now)
+        base = {"exif_removed": True, "faces_blurred": 0, "status": "not_analysed",
+                "reason": "photo analysis is switched off here, so the photo was not kept; your answers were recorded"}
+        if case is None:
+            return {"case_id": None, "snap_distance_m": round(dist, 1), "status": "no_open_case", "report_token": None,
+                    "photo": base}
+        with _case_lock(case.id):
+            return {"case_id": case.id, "snap_distance_m": round(dist, 1), "status": case.status, "photo": base,
+                    "report_token": _report_token(case.id, index)}
     raw = photo.file.read(MAX_PHOTO_BYTES + 1)
     if len(raw) > MAX_PHOTO_BYTES:
         raise HTTPException(413, "photo larger than 10 MB")

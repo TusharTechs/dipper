@@ -54,7 +54,7 @@ export interface PublicAdvisory {
 export interface HistoryEvent { seq: number; at: string; type: 'observation' | 'action'; payload: Record<string, any> }
 export interface ReachInfo { id: string; name: string; city: string; length_m: number; candidates: number; places: number }
 export interface User { id: string; name: string; role: Role; demo: boolean }
-export interface Config { demo: boolean; roles: Role[]; demo_reach: string | null; fhir_server: boolean }
+export interface Config { demo: boolean; roles: Role[]; demo_reach: string | null; fhir_server: boolean; photo_analysis: boolean }
 export interface SignalResult { case_id: string; status: string; snap_distance_m: number; report_token: string }
 export interface PhotoResult {
   case_id: string; status: string; report_token: string

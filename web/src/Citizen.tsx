@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useAnnounce } from './App'
+import { useAnnounce, useAuth } from './App'
 import CaseMap from './Map'
 import { api, ApiError, DEFAULT_REACH, type CitizenCase, type GeoJSON, type PhotoResult, type ReachInfo } from './api'
 import { FEATURES, LANG_NAME, STATUS, T, km, languagesFor, pick, preferredLang, type Lang } from './i18n'
@@ -50,6 +50,8 @@ function landmarks(reach: GeoJSON | null): Landmark[] {
 
 export default function Citizen() {
   const announce = useAnnounce()
+  const { config } = useAuth()
+  const photos = !!config?.photo_analysis  // no photo field when this deployment does not analyse photos
   const [reaches, setReaches] = useState<ReachInfo[]>([])
   const [reachId, setReachId] = useState(DEFAULT_REACH)
   const offered = languagesFor(reaches.find((r) => r.id === reachId)?.city ?? 'Coimbra')
@@ -112,7 +114,7 @@ export default function Citizen() {
     const body = { reach_id: reachId, lat: picked.lat, lon: picked.lon, features: answers }
     const queuedBody: Queued = { ...body, observed_at: new Date().toISOString(), client_id: crypto.randomUUID().replace(/-/g, '') }
     try {
-      const r = file ? await api.signalPhoto(file, body) : await api.signal(queuedBody)
+      const r = file && photos ? await api.signalPhoto(file, body) : await api.signal(queuedBody)
       if ('photo' in r) setPhotoRes(r.photo)
       if (!r.case_id || !r.report_token) { setCleanNoCase(true); announce(t.cleanThanks); return }
       remember({ case_id: r.case_id, token: r.report_token, reach: reachId, at: queuedBody.observed_at }); setRecent(readRecent())
@@ -204,12 +206,14 @@ export default function Citizen() {
                 onClick={() => setFeats((s) => ({ ...s, [f.id]: !s[f.id] }))}>{f.label[lang]}</button>))}</div>
           </fieldset>
           <label className="check"><input type="checkbox" checked={cleanReport} onChange={(e) => setCleanReport(e.target.checked)} /> {t.clean}</label>
-          <label className="photo-pick" htmlFor="photo-input">
+{photos && <>
+                    <label className="photo-pick" htmlFor="photo-input">
             <span>{file ? file.name : t.photo}</span>
             <input id="photo-input" type="file" accept="image/*" capture="environment" aria-describedby="photo-consent"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
           <p id="photo-consent" className="muted small">{t.photoConsent}</p>
+          </>}
           <button className="primary wide" disabled={busy} onClick={send}>{busy ? t.sending : t.send}</button>
           <p className="muted small">{t.safety}</p>
         </>}

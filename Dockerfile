@@ -24,6 +24,9 @@ RUN --mount=type=secret,id=extra_ca,required=false \
       cat /etc/ssl/certs/ca-certificates.crt /run/secrets/extra_ca > /tmp/ca.pem && export SSL_CERT_FILE=/tmp/ca.pem; \
     fi; \
     uv sync --frozen --no-dev && rm -f /tmp/ca.pem
+# Precompile the app's own modules: it is installed in editable mode and the runtime user cannot write the
+# bytecode cache, so without this every cold start recompiles it (seconds on a small instance).
+RUN /app/.venv/bin/python -m compileall -q -j 0 src
 COPY --from=web /web/dist ./web/dist
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 

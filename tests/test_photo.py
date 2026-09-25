@@ -223,3 +223,20 @@ def test_photo_observer_does_not_report_excluded_brown_turbid():
     obs = to_observation(pf, "n1")
     assert "brown_turbid" not in dict(obs.features) and dict(obs.features)["grey"] is True
     assert conflicts({"brown_turbid": False}, pf) == []
+
+
+def test_with_photo_analysis_off_photos_are_never_processed_or_kept(api, monkeypatch):
+    main, client = api
+    for v in ("DIPPER_VISION_PROVIDER", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "LLM_API_KEY"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.setattr(main, "redact", lambda raw: (_ for _ in ()).throw(AssertionError("photo was processed")))
+    assert client.get("/v1/config").json()["photo_analysis"] is False
+    g = main.reach("coimbra-ribeira-de-coselhas")
+    nd = [n for n in g.nodes.values() if n.access][0]
+    r = client.post("/v1/signals/photo", files={"photo": ("p.jpg", b"\xff\xd8not-really", "image/jpeg")},
+                    data={"reach_id": "coimbra-ribeira-de-coselhas", "lat": nd.lat, "lon": nd.lon,
+                          "features": '{"grey": true}'}).json()
+    assert r["photo"]["status"] == "not_analysed" and r["report_token"]
+    obs = main._cases[r["case_id"]].belief.observations
+    assert [o.role for o in obs] == ["citizen"] and obs[0].media is None
+    assert not main.MEDIA_DIR.exists() or not any(main.MEDIA_DIR.iterdir())

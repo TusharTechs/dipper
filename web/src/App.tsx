@@ -38,7 +38,7 @@ export default function App() {
     return () => window.removeEventListener('hashchange', on)
   }, [])
   useEffect(() => {
-    api.config().then(setConfig).catch(() => setConfig({ demo: false, roles: [], demo_reach: null, fhir_server: false }))
+    api.config().then(setConfig).catch(() => setConfig({ demo: false, roles: [], demo_reach: null, fhir_server: false, photo_analysis: false }))
     if (session.token) api.me().then(setUser).catch(() => setUser(null))
   }, [])
   useEffect(() => {
