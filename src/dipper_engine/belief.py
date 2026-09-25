@@ -8,9 +8,10 @@ The table is small, so inference is exact and every update can be explained line
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import numpy as np
 
@@ -98,6 +99,10 @@ class Belief:
         self.clock: datetime | None = None            # time of the latest observation
         self._last_positive: datetime | None = None
         self._persisting = False
+        # Day/night discharge activity follows the stream's local time at each observation, not the case opening.
+        tz = graph.meta.get("tz") if hasattr(graph, "meta") else None
+        self._tz = ZoneInfo(tz) if tz else None
+        self._act_ctx = ctx
 
     # ---- prior -----------------------------------------------------------------
     def _prior(self, weights: dict[str, float] | None) -> np.ndarray:
@@ -126,10 +131,17 @@ class Belief:
         return np.array([table.get(h, 0.0) for h, _ in self.states])
 
     def _activity(self, h: str) -> float:
-        a = activity(self.params, h, self.ctx)
+        a = activity(self.params, h, self._act_ctx)
         return max(a, self.params.activity_persist) if self._persisting else a
 
     def _refresh_persistence(self) -> None:
+        if self.clock is not None and self._tz is not None:
+            hour = self.clock.astimezone(self._tz).hour
+            if hour != self._act_ctx.hour:
+                day_before = self._act_ctx.daytime
+                self._act_ctx = replace(self._act_ctx, hour=hour)
+                if self._act_ctx.daytime != day_before:
+                    self._pres_cache.clear()
         on = (self._last_positive is not None and self.clock is not None and
               (self.clock - self._last_positive).total_seconds() <= self.params.persist_window_h * 3600)
         if on != self._persisting:
@@ -216,6 +228,11 @@ class Belief:
     def update(self, obs: Observation) -> LedgerEntry:
         """Bayes update. Validates first, so a rejected observation leaves the belief untouched."""
         self.validate(obs)
+        # Score the observation with the discharge state at its own time: move the clock first, so a check made
+        # hours after the last positive sighting no longer counts as inside that burst.
+        if obs.observed_at is not None:
+            self.clock = max(self.clock, obs.observed_at) if self.clock else obs.observed_at
+        self._refresh_persistence()
         text = obs.describe(self.graph)
         before = self.p
         lik = np.clip(self.likelihood(obs), 1e-12, None)
@@ -239,10 +256,8 @@ class Belief:
                 best_h, best_w = h, w
         self.logp = self.logp + np.log(lik)
         self.observations.append(obs)
-        if obs.observed_at is not None:
-            self.clock = max(self.clock, obs.observed_at) if self.clock else obs.observed_at
-            if obs.positive and obs.kind in ("report", "instream_look", "outfall_look"):
-                self._last_positive = obs.observed_at
+        if obs.observed_at is not None and obs.positive and obs.kind in ("report", "instream_look", "outfall_look"):
+            self._last_positive = max(self._last_positive, obs.observed_at) if self._last_positive else obs.observed_at
         self._refresh_persistence()
         after = self.p
         entry = LedgerEntry(

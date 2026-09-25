@@ -56,7 +56,7 @@ overflows and urban runoff. Every such city needs a way to turn scattered signal
 
 | Who | What they get |
 |---|---|
-| **Citizen** (phone, PT/EN, works offline) | Reports what they see or smell in under a minute. Gets one short, nearby "mission" that sharpens the search, and sees what their check changed. |
+| **Citizen** (phone, in the city's language and English, works offline) | Reports what they see or smell in under a minute. Gets one short, nearby "mission" that sharpens the search, and sees what their check changed. |
 | **Investigator** (utility or municipality) | A case with a probability for each explanation and each candidate outfall. Gets the next best check with both outcomes spelled out, and hands off once the source is localized. |
 | **Public-health officer** | A drafted advisory that keeps what was *observed* separate from what is *inferred*. They approve it, and it goes onto a public map. |
 | **Health information systems** | A FHIR R4 bundle on the OneAquaHealth IG (0 validator errors), pushed to any FHIR server. |
@@ -208,7 +208,7 @@ sequenceDiagram
   C->>A: Report: grey water, sewage smell, point on the stream
   A->>E: Snap to the stream graph, add evidence
   E-->>A: Belief updated, citizen checks ranked by value minus walk
-  A-->>C: Thank you + one nearby mission
+  A-->>C: Thank you, a private report token and one nearby mission
   C->>A: Mission answer: clean
   A-->>C: Your check ruled out about 8% of the places
   I->>A: Run next best checks
@@ -234,11 +234,12 @@ approve the advisory. Last, open **Advisories**. The citizen flow is at **Report
 Development without Docker:
 
 ```bash
-uv sync && uv run pytest                                           # 62 tests
+uv sync && uv run pytest                                           # 68 tests
 DIPPER_DEMO=1 uv run uvicorn dipper_api.main:app --reload          # API at :8000, docs at /docs
 npm --prefix web install && npm --prefix web run dev               # UI at http://localhost:3000
 uv run python -m dipper_engine.sim --trials 40                     # SourceBench (simulation)
 uv run python scripts/export_fhir_examples.py && ./fhir/validate.sh  # FHIR bundles + HL7 validator
+npm --prefix web run a11y -- http://localhost:8000                 # axe audit (needs a demo site and Chrome)
 ```
 
 `docker compose --profile fhir up` also starts a local HAPI FHIR server, reachable from the app at
@@ -251,9 +252,9 @@ user, has a health check on `/api/ready`, and keeps all state in the `/app/state
 
 | Variable | Purpose |
 |---|---|
-| `DIPPER_DEMO` | `1` enables scenario replay and one-click demo sign-in. **Set `0` in production.** |
-| `DIPPER_DB`, `DIPPER_MEDIA` | Event store and redacted photos (default: under `/app/state`) |
-| `DIPPER_MEDIA_DAYS` | Photo retention in days (default 30), enforced automatically |
+| `DIPPER_DEMO` | `1` enables scenario replay and one-click demo sign-in (investigator or public-health officer, never admin). **Set `0` in production.** |
+| `DIPPER_DB`, `DIPPER_MEDIA`, `DIPPER_CACHE` | Event store, redacted photos and downloaded weather (default: under `/app/state`) |
+| `DIPPER_MEDIA_DAYS` | Photo retention in days (default 30), enforced at startup and every hour |
 | `DIPPER_PEPPER` | Secret for pseudonymising citizen device ids. Generated and stored on first run if unset. |
 | `DIPPER_PROXY_HOPS` | Number of reverse proxies in front of the app, so rate limits see the real client |
 | `ANTHROPIC_API_KEY` or `GEMINI_API_KEY`, `DIPPER_VISION_PROVIDER` | Photo reading (optional; reports work without it) |
@@ -271,15 +272,21 @@ The roles are `trained` (volunteer checks), `inspector` (investigation and hand-
 
 **Security and privacy by design:**
 - **Citizens are anonymous.** They are identified only by a random device id, which the server turns into a
-  keyed pseudonym. Citizens never see the outfall ranking.
+  keyed pseudonym.
+- **Only the reporter can follow a report.** Each report returns a private token, sent in a header and never
+  in a URL. Only that token opens the case summary and answers its missions, once per mission. Case ids alone
+  are guessable; the token is not.
+- **Minimal location sharing.** A mission is chosen from where the stored report was snapped to the stream,
+  so the phone never sends its location again. Citizens never see the outfall ranking or outfall labels.
 - **Photos:**
   - EXIF is stripped and faces are blurred before any model sees a photo.
   - If face detection is unavailable, the photo is discarded.
-  - Stored photos are deleted after the retention period.
+  - Stored photos are deleted after the retention period, checked every hour.
 - **Staff decisions:** every decision records the person's role and id. FHIR exports carry role and id,
   never names.
 - **Hardening:**
-  - Rate limits on public endpoints.
+  - Rate limits on public endpoints, including mission answers. They hold behind a reverse proxy: forwarded
+    addresses are trusted only from declared proxies (tested through the production `/api` mount).
   - Content Security Policy and security headers.
   - Request ids.
   - JSON logs without IP addresses.
@@ -291,10 +298,35 @@ The roles are `trained` (volunteer checks), `inspector` (investigation and hand-
 **Backups:** copy `/app/state` (the SQLite database in WAL mode, plus media). For example, with
 `sqlite3 /app/state/dipper.sqlite3 ".backup /backup/dipper.sqlite3"`.
 
+## Scaling
+
+**The deployment unit is one city or one utility.** Streams are independent networks, so each city runs its
+own container with its own reaches, staff and event store. There is no shared state between cities.
+
+| What | Measured on a laptop (Apple silicon, one core) |
+|---|---|
+| Case view, first after new evidence (ranks every possible check) | 25 ms on Ribeira de Coselhas (156 stream points); 141 ms on Zwalmbeek, Ghent (1,524 points) |
+| Case view afterwards (ranking cached until new evidence arrives) | 1.6 ms and 9.5 ms |
+| Citizen mission pool | 8 ms and 28 ms |
+
+Page views far outnumber new evidence, so the cache carries almost all traffic. One process serves a city's
+full load: dozens of open cases and hundreds of citizen reports a day are well within these numbers.
+
+**What breaks first, and the path past it:**
+1. **Evidence write rate.** The API holds one process-wide lock while it applies evidence and ranks checks.
+   That caps it at roughly 7 to 40 new pieces of evidence per second, depending on stream size. A city
+   produces a few per hour. The next step is one lock per case, since cases are independent.
+2. **One writer, one process.** SQLite in WAL mode has one writer, and in-memory cases tie a city to one
+   process. For a national operator, the event store moves to Postgres (the schema is already append-only
+   events), with cases sharded by reach across workers.
+3. **Startup replay.** Every case is rebuilt from its events when the process starts, which takes seconds
+   for thousands of cases. Closed cases can be archived out of the hot set.
+
 ## Accessibility and usability
 
 - **Automated checks:** axe-core (WCAG 2.2 AA and best practice) reports **0 violations** on every screen
-  and tab, at desktop and phone widths.
+  and case tab, at 1440, 375 and 320 px. It also checks for horizontal scrolling. Reproduce it with
+  `npm --prefix web run a11y`; CI runs it on every push.
 - **Keyboard and screen readers:**
   - Skip link, landmarks and one `h1` per screen.
   - Visible focus, and focus moves to the confirmation after a report.
@@ -303,11 +335,15 @@ The roles are `trained` (volunteer checks), `inspector` (investigation and hand-
     of the map.
 - **Mobile and offline:**
   - Mobile first, with no horizontal scrolling at 320 px.
-  - Installs as a PWA. A report made offline is queued and sent automatically.
+  - Installs as a PWA. A report made offline keeps the time it was made, is sent automatically when the phone
+    is back online, and is never counted twice. A photo cannot be queued offline, and the app says so.
 - **Plain language:**
-  - The citizen app is in Portuguese and English.
+  - The citizen app is in English and each pilot city's language: Portuguese (Coimbra), Norwegian (Oslo) and
+    Dutch (Ghent). It follows the browser's language and falls back to English for visitors. These are draft
+    translations for native speakers to review before a pilot.
   - Numbers come with plain words ("your check ruled out about 8% of the places the source could be").
-  - Advisories are drafted in both languages.
+  - Advisories are drafted in English and the city's language. The public sees exactly the wording the
+    officer approved.
   - Simulated data is always labelled.
 - **Performance:** fonts are self-hosted and the map loads after the page, so the first view is about 85 kB
   of script (gzip).
@@ -322,10 +358,10 @@ The roles are `trained` (volunteer checks), `inspector` (investigation and hand-
 
 | Strategy | Localized correctly | Wrong localization | Median checks (successes) | Mean cost |
 |---|---|---|---|---|
-| Walk the bank, outfall by outfall | 26% | 7% | 19 | 1.48 |
-| Bisect (look at the stream at the 50% point) | 43% | 14% | 13 | 0.95 |
-| **Dipper (value of information)** | **57%** | 9% | 9 | 1.26 |
-| Greedy information gain, ignoring cost | 75% | 9% | 8 | 4.78 |
+| Walk the bank, outfall by outfall | 28% | 7% | 20 | 1.49 |
+| Bisect (look at the stream at the 50% point) | 43% | 11% | 13 | 0.95 |
+| **Dipper (value of information)** | **56%** | 9% | 9.5 | 1.30 |
+| Greedy information gain, ignoring cost | 74% | 10% | 8 | 4.92 |
 | Random check | 6% | 0% | 10 | 4.76 |
 
 **Reading:**
@@ -347,7 +383,9 @@ These are simulated results under stated assumptions, not field performance. Rep
   also run in CI).
 - **The one warning:** the OAH cohort value set has only Age and Sex, while Dipper's cohort is defined by
   place, so Dipper uses its own code.
-- **Push:** hand-off sends a transaction of conditional updates, so re-sending a case never duplicates it.
+- **Push:** hand-off sends a transaction of `PUT`s with stable resource ids, so re-sending a case updates it
+  instead of duplicating it.
+- **Reproducible:** `fhir/validate.sh` pins the OAH IG commit and the validator release (6.10.4).
 
 ## Repository layout
 
@@ -365,11 +403,11 @@ docs/model-card.md   every parameter and its rationale
 
 | Built and tested | Next, with a pilot partner |
 |---|---|
-| Engine, recommender, SourceBench, replay; 62 tests; CI | Real outfall inventories instead of synthetic candidates |
+| Engine, recommender, SourceBench, replay; 68 tests; CI | Real outfall inventories instead of synthetic candidates |
 | Staff roles and approvals, audit trail, public advisories | Expert review of likelihoods; lab calibration |
 | FHIR on the OAH IG, validated and pushed | Overflow-telemetry and sensor feeds as evidence |
 | Photo pipeline, evaluated on 35 Commons photos ([data/eval](data/eval/README.md)) | Number-plate redaction; expert-labelled photo set |
-| Accessible, bilingual, offline-capable citizen PWA | More languages; notifications when a case changes |
+| Accessible, offline-capable citizen PWA in four languages | Native review of translations; notifications when a case changes |
 
 ## Licence and attribution
 

@@ -1165,7 +1165,7 @@
         ],
         "version": [
           {
-            "value": "0.1.0"
+            "value": "0.3.0"
           }
         ],
         "note": [
@@ -1352,7 +1352,7 @@
           "reference": "Device/SIM-dev-dipper-engine"
         },
         "method": {
-          "text": "Dipper Bayesian source search v0.1.0"
+          "text": "Dipper Bayesian source search v0.3.0"
         },
         "basis": [
           {
@@ -1454,7 +1454,7 @@
           "reference": "Location/SIM-loc-reach-Ribeira-de-Coselhas"
         },
         "period": {
-          "start": "2026-09-25T07:11:10.231410+00:00"
+          "start": "2026-09-25T12:22:55.020664+00:00"
         },
         "author": {
           "reference": "Device/SIM-dev-dipper-engine"
@@ -1501,9 +1501,9 @@
             "reference": "RiskAssessment/SIM-risk-C-014"
           }
         ],
-        "sent": "2026-09-25T07:11:10.231410+00:00",
+        "sent": "2026-09-25T12:22:55.020664+00:00",
         "sender": {
-          "display": "Approved by ph-officer-01"
+          "display": "Approved by staff"
         },
         "payload": [
           {

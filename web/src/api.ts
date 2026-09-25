@@ -25,7 +25,7 @@ export interface Exposure { id: string; kind: string; label: string; lat: number
 export interface Action { type: string; at: string; approver: string | null; payload: Record<string, unknown> }
 export interface AdvisoryDraft {
   tiers: { observed: string; inferred: string; possible_risk: string; needs_confirmation: string }
-  text: { en: string; pt: string }; suggested: boolean
+  text: Record<string, string>; suggested: boolean
 }
 export interface CaseView {
   id: string; reach: string; city: string; status: string; opened_at: string; simulated?: boolean
@@ -42,20 +42,21 @@ export interface CaseSummary {
 }
 export interface CitizenCase {
   id: string; reach: string; status: string; reports: number; checks: number
-  mission: { key: string; type: CheckType; where: string; lat: number; lon: number; km_above_outlet: number; outfall: string | null
-    walk_m: number | null; if_clean: string; if_polluted: string } | null
-  advisory: { en: string; pt: string } | null; history: { at: string; type: string }[]
+  mission: { key: string; type: CheckType; kind: 'outfall' | 'stream'; lat: number; lon: number; km_above_outlet: number
+    walk_m: number | null } | null
+  advisory: Record<string, string> | null; history: { at: string; type: string }[]
 }
 export interface PublicAdvisory {
-  case: string; reach: string; city: string; issued_at: string; text: { en: string; pt: string }
+  case: string; reach: string; city: string; issued_at: string; text: Record<string, string>
   stretch: { type: 'LineString'; coordinates: [number, number][] }; simulated: boolean
 }
 export interface HistoryEvent { seq: number; at: string; type: 'observation' | 'action'; payload: Record<string, any> }
 export interface ReachInfo { id: string; name: string; city: string; length_m: number; candidates: number; places: number }
 export interface User { id: string; name: string; role: Role; demo: boolean }
 export interface Config { demo: boolean; roles: Role[]; demo_reach: string | null; fhir_server: boolean }
+export interface SignalResult { case_id: string; status: string; snap_distance_m: number; report_token: string }
 export interface PhotoResult {
-  case_id: string; status: string
+  case_id: string; status: string; report_token: string
   photo: { status: 'analysed' | 'not_analysed'; reason?: string; faces_blurred: number; note?: string
     conflicts?: { feature: string; citizen_said: boolean; photo_confidence: number; prompt: string }[] }
 }
@@ -103,7 +104,7 @@ const post = (body?: unknown): RequestInit => ({ method: 'POST', body: body === 
 export const api = {
   config: () => req<Config>('/v1/config'),
   me: () => req<User>('/v1/auth/me'),
-  demoSignIn: (role: 'inspector' | 'public_health' | 'admin') => req<{ token: string; user: User }>('/v1/auth/demo', post({ role })),
+  demoSignIn: (role: 'inspector' | 'public_health') => req<{ token: string; user: User }>('/v1/auth/demo', post({ role })),
   reaches: () => req<ReachInfo[]>('/v1/reaches'),
   reach: (id: string) => req<GeoJSON>(`/v1/reaches/${enc(id)}`),
   cases: () => req<CaseSummary[]>('/v1/cases'),
@@ -116,13 +117,13 @@ export const api = {
   check: (id: string, body: { check_type: CheckType; positive: boolean; node_id?: string | null; candidate_id?: string | null }) =>
     req<CaseView>(`/v1/cases/${enc(id)}/checks`, post(body)),
   action: (id: string, type: string, extra?: { note?: string; clean?: boolean }) => req<CaseView>(`/v1/cases/${enc(id)}/actions`, post({ type, ...extra })),
-  signal: (body: { reach_id: string; lat: number; lon: number; features: Record<string, boolean> }) =>
-    req<{ case_id: string; snap_distance_m: number; status: string }>('/v1/signals', post({ ...body, observer: deviceId() })),
-  citizenCase: (id: string, near?: { lat: number; lon: number } | null) =>
-    req<CitizenCase>(`/v1/citizen/cases/${enc(id)}${near ? `?lat=${near.lat.toFixed(5)}&lon=${near.lon.toFixed(5)}` : ''}`),
-  citizenCheck: (id: string, mission_key: string, positive: boolean) =>
-    req<{ status: string; search_narrowed_bits: number; now_most_likely_in: string }>(`/v1/citizen/cases/${enc(id)}/checks`,
-      post({ mission_key, positive, observer: deviceId() })),
+  signal: (body: { reach_id: string; lat: number; lon: number; features: Record<string, boolean>; observed_at?: string; client_id?: string }) =>
+    req<SignalResult>('/v1/signals', post({ ...body, observer: deviceId() })),
+  // The report token proves this device made the report; it travels in a header, never in the URL.
+  citizenCase: (id: string, token: string) => req<CitizenCase>(`/v1/citizen/cases/${enc(id)}`, { headers: { 'x-report-token': token } }),
+  citizenCheck: (id: string, token: string, mission_key: string, positive: boolean) =>
+    req<{ status: string; search_narrowed_bits: number }>(`/v1/citizen/cases/${enc(id)}/checks`,
+      { ...post({ mission_key, positive }), headers: { 'x-report-token': token } }),
   advisories: () => req<PublicAdvisory[]>('/v1/public/advisories'),
   simResults: () => req<any>('/v1/sim/results'),
   signalPhoto: (file: File, body: { reach_id: string; lat: number; lon: number; features: Record<string, boolean> }) => {

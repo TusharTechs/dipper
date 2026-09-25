@@ -75,10 +75,13 @@ header.top nav a { display: inline-block; padding: 8px 12px; border-radius: 8px;
 header.top nav a.on, header.top nav a[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
 .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; color: var(--ink); text-decoration: none; margin-right: 8px; font-size: 18px; letter-spacing: -0.01em; }
 .brand img { display: block; border-radius: 7px; }
+header.top nav .short { display: none; }
+@media (max-width: 760px) { header.top nav .short { display: inline; } }
 @media (max-width: 760px) {
   header.top nav { order: 10; flex-basis: 100%; overflow-x: auto; margin: 0 -16px; padding: 0 12px; scrollbar-width: none; }
   header.top nav ul { flex-wrap: nowrap; }
-  header.top nav a { white-space: nowrap; padding: 8px 10px; }
+  header.top nav a { white-space: nowrap; padding: 8px 9px; font-size: 15px; }
+  header.top nav .full { display: none; }
   .who .muted { display: none; }
 }
 .spacer { flex: 1; }

@@ -1,4 +1,4 @@
-# Dipper engine · model card (v0.1.0)
+# Dipper engine · model card (v0.3.0)
 
 **What it does.** For one pollution case on one stream reach, Dipper keeps a joint probability over
 *what* the pollution is and *where* it enters. It then ranks the next check by value of information.
@@ -35,7 +35,8 @@ reach, or an unmapped entry).
 | Ammonium strip | P(high \| foul present) = 0.85; false positive 0.08 | Ammonium tracked faecal indicators and a human DNA marker (R² 0.49–0.88) in Dublin's Elm Park stream (IJERPH 2021) |
 | Lab E. coli | Sensitivity 0.95 for sewage; false positive 0.05; 24 h delay | Standard culture methods; the delay reflects typical turnaround |
 | Presence | Point source: discharging with activity(h, time), and upstream of the check. Diffuse: fixed visibility rate. | Misconnections are intermittent (washing machines are the most common culprit, per Water UK) |
-| Persistence | For 2 h after a positive sighting, activity ≥ 0.85 | Discharges come in bursts. Without this, clean checks right after reports would be under-weighted. |
+| Persistence | For 2 h after a positive sighting, activity ≥ 0.85, judged at each observation's own time | Discharges come in bursts. Without this, clean checks right after reports would be under-weighted; a check hours later is scored outside the burst. |
+| Time of day | Day (07–22 h) or night activity, from the stream's local time at each observation | Household misconnections follow daily routines (washing, showers), so the same clean look means less at night. |
 
 ## Priors
 
@@ -71,10 +72,13 @@ Relative costs:
 | Check | Cost |
 |---|---|
 | Citizen look | 0.05 |
-| Photo features (`photo_model` observer) | Same as a look, with sensitivity 0.60, false alarm 0.15 and feature trust 0.4, lower than any person. A feature counts when confidence is ≥ 0.6. It is tempered with nearby reports, since it shows the same scene. | A weak, correlated observer by design. Smoke-tested on 35 labelled Commons photos (`data/eval/`): 93% of polluted photos detected; brown_turbid dropped after 22% precision; grey water barely represented. Not a validation. |
 | Outfall look | 0.06 |
 | Ammonium strip | 0.12 |
 | Lab sample | 0.50 |
+
+Citizen missions subtract a walking cost of 0.08 per km from where the citizen reported, so a nearly as
+useful check nearby wins over a slightly better one across town. Staff lists drop checks whose two
+outcomes are the same as a better-ranked check of the same type, so they show real alternatives.
 
 The search weight (1.2) was chosen on SourceBench as the best trade-off between success rate and cost
 (sweep: 0.6, 1.2, 2.0, 3.0).

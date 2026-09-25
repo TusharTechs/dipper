@@ -153,7 +153,7 @@ class PhotoModelUnavailable(RuntimeError):
 
 
 def vision_provider() -> str:
-    """'anthropic' or 'gemini'. DIPPER_VISION_PROVIDER wins; otherwise whichever key is configured, Claude first."""
+    """'anthropic', 'gemini' or 'none'. DIPPER_VISION_PROVIDER wins; otherwise whichever key is set, Claude first."""
     explicit = os.getenv("DIPPER_VISION_PROVIDER", "").strip().lower()
     if explicit in ("anthropic", "gemini"):
         return explicit
@@ -161,12 +161,15 @@ def vision_provider() -> str:
         return "anthropic"
     if os.getenv("GEMINI_API_KEY"):
         return "gemini"
-    return "anthropic"
+    return "none"
 
 
 def extract(jpeg: bytes) -> PhotoFeatures:
     """Extract features with the configured provider. The image must already be redacted."""
-    return extract_features_gemini(jpeg) if vision_provider() == "gemini" else extract_features(jpeg)
+    provider = vision_provider()
+    if provider == "none":
+        raise PhotoModelUnavailable("no photo model is configured; the report was recorded without photo analysis")
+    return extract_features_gemini(jpeg) if provider == "gemini" else extract_features(jpeg)
 
 
 def _parse(text: str | None) -> PhotoFeatures:

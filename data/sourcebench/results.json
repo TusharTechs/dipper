@@ -6,8 +6,8 @@
     "policies": "walk,bisect,entropy,voi,random",
     "misspec": 1.3,
     "no_bursty": false,
-    "reaches": "/Users/tusharagrawal/Library/Application Support/Claude/scratch-workspaces/211ca338-c0e4-49d3-a8bf-9862eaa8c6b3/4ac6d263-24b9-44ec-a5bf-2e58cc59e5fe/scratch-2026-09-25-761b86/dipper/data/reaches",
-    "out": "/Users/tusharagrawal/Library/Application Support/Claude/scratch-workspaces/211ca338-c0e4-49d3-a8bf-9862eaa8c6b3/4ac6d263-24b9-44ec-a5bf-2e58cc59e5fe/scratch-2026-09-25-761b86/dipper/data/sourcebench/results.json"
+    "reaches": "/Users/tusharagrawal/Documents/dipper/data/reaches",
+    "out": "/Users/tusharagrawal/Documents/dipper/data/sourcebench/results.json"
   },
   "networks": [
     "synthetic-1",
@@ -23,21 +23,21 @@
       "network": "Hoffselva",
       "policy": "bisect",
       "trials": 40,
-      "success_rate": 0.3,
-      "wrong_localization_rate": 0.25,
-      "median_checks": 23.0,
-      "median_checks_when_successful": 13.0,
-      "mean_cost": 0.981
+      "success_rate": 0.325,
+      "wrong_localization_rate": 0.15,
+      "median_checks": 25.0,
+      "median_checks_when_successful": 13,
+      "mean_cost": 0.994
     },
     {
       "network": "Hoffselva",
       "policy": "entropy",
       "trials": 40,
-      "success_rate": 0.65,
-      "wrong_localization_rate": 0.15,
-      "median_checks": 9.0,
-      "median_checks_when_successful": 8.5,
-      "mean_cost": 5.126
+      "success_rate": 0.625,
+      "wrong_localization_rate": 0.25,
+      "median_checks": 9.5,
+      "median_checks_when_successful": 8,
+      "mean_cost": 5.019
     },
     {
       "network": "Hoffselva",
@@ -53,61 +53,61 @@
       "network": "Hoffselva",
       "policy": "voi",
       "trials": 40,
-      "success_rate": 0.525,
-      "wrong_localization_rate": 0.15,
-      "median_checks": 15.5,
-      "median_checks_when_successful": 12,
-      "mean_cost": 1.276
+      "success_rate": 0.45,
+      "wrong_localization_rate": 0.175,
+      "median_checks": 18.0,
+      "median_checks_when_successful": 11.5,
+      "mean_cost": 1.395
     },
     {
       "network": "Hoffselva",
       "policy": "walk",
       "trials": 40,
       "success_rate": 0.2,
-      "wrong_localization_rate": 0.175,
+      "wrong_localization_rate": 0.2,
       "median_checks": 25.0,
-      "median_checks_when_successful": 20.0,
-      "mean_cost": 1.507
+      "median_checks_when_successful": 21.0,
+      "mean_cost": 1.515
     },
     {
       "network": "Hovinbekken",
       "policy": "bisect",
       "trials": 40,
       "success_rate": 0.35,
-      "wrong_localization_rate": 0.125,
+      "wrong_localization_rate": 0.05,
       "median_checks": 25.0,
-      "median_checks_when_successful": 12.0,
-      "mean_cost": 1.04
+      "median_checks_when_successful": 14.5,
+      "mean_cost": 1.074
     },
     {
       "network": "Hovinbekken",
       "policy": "entropy",
       "trials": 40,
       "success_rate": 0.575,
-      "wrong_localization_rate": 0.1,
-      "median_checks": 10.0,
-      "median_checks_when_successful": 8,
-      "mean_cost": 5.39
+      "wrong_localization_rate": 0.125,
+      "median_checks": 13.0,
+      "median_checks_when_successful": 9,
+      "mean_cost": 5.771
     },
     {
       "network": "Hovinbekken",
       "policy": "random",
       "trials": 40,
-      "success_rate": 0.05,
+      "success_rate": 0.025,
       "wrong_localization_rate": 0.0,
       "median_checks": 25.0,
-      "median_checks_when_successful": 19.0,
-      "mean_cost": 4.598
+      "median_checks_when_successful": 16,
+      "mean_cost": 4.613
     },
     {
       "network": "Hovinbekken",
       "policy": "voi",
       "trials": 40,
-      "success_rate": 0.525,
-      "wrong_localization_rate": 0.1,
-      "median_checks": 20.0,
-      "median_checks_when_successful": 10,
-      "mean_cost": 1.385
+      "success_rate": 0.475,
+      "wrong_localization_rate": 0.075,
+      "median_checks": 22.5,
+      "median_checks_when_successful": 12,
+      "mean_cost": 1.461
     },
     {
       "network": "Hovinbekken",
@@ -117,27 +117,27 @@
       "wrong_localization_rate": 0.025,
       "median_checks": 25.0,
       "median_checks_when_successful": 25,
-      "mean_cost": 1.539
+      "mean_cost": 1.54
     },
     {
       "network": "Ljanselva",
       "policy": "bisect",
       "trials": 40,
-      "success_rate": 0.625,
+      "success_rate": 0.575,
       "wrong_localization_rate": 0.125,
-      "median_checks": 20.0,
-      "median_checks_when_successful": 15,
-      "mean_cost": 0.916
+      "median_checks": 19.0,
+      "median_checks_when_successful": 14,
+      "mean_cost": 0.901
     },
     {
       "network": "Ljanselva",
       "policy": "entropy",
       "trials": 40,
-      "success_rate": 0.925,
+      "success_rate": 0.9,
       "wrong_localization_rate": 0.05,
-      "median_checks": 9.0,
-      "median_checks_when_successful": 9,
-      "mean_cost": 4.955
+      "median_checks": 10.0,
+      "median_checks_when_successful": 9.5,
+      "mean_cost": 5.332
     },
     {
       "network": "Ljanselva",
@@ -153,41 +153,41 @@
       "network": "Ljanselva",
       "policy": "voi",
       "trials": 40,
-      "success_rate": 0.65,
-      "wrong_localization_rate": 0.075,
+      "success_rate": 0.7,
+      "wrong_localization_rate": 0.05,
       "median_checks": 17.5,
-      "median_checks_when_successful": 12.0,
-      "mean_cost": 1.319
+      "median_checks_when_successful": 13.0,
+      "mean_cost": 1.317
     },
     {
       "network": "Ljanselva",
       "policy": "walk",
       "trials": 40,
-      "success_rate": 0.15,
+      "success_rate": 0.125,
       "wrong_localization_rate": 0.075,
       "median_checks": 25.0,
-      "median_checks_when_successful": 23.0,
-      "mean_cost": 1.544
+      "median_checks_when_successful": 23,
+      "mean_cost": 1.55
     },
     {
       "network": "Ribeira de Coselhas",
       "policy": "bisect",
       "trials": 40,
-      "success_rate": 0.525,
-      "wrong_localization_rate": 0.1,
-      "median_checks": 17.5,
-      "median_checks_when_successful": 13,
-      "mean_cost": 0.89
+      "success_rate": 0.5,
+      "wrong_localization_rate": 0.125,
+      "median_checks": 19.0,
+      "median_checks_when_successful": 13.0,
+      "mean_cost": 0.9
     },
     {
       "network": "Ribeira de Coselhas",
       "policy": "entropy",
       "trials": 40,
-      "success_rate": 0.8,
-      "wrong_localization_rate": 0.075,
-      "median_checks": 8.5,
-      "median_checks_when_successful": 7.0,
-      "mean_cost": 5.332
+      "success_rate": 0.775,
+      "wrong_localization_rate": 0.025,
+      "median_checks": 9.0,
+      "median_checks_when_successful": 7,
+      "mean_cost": 5.395
     },
     {
       "network": "Ribeira de Coselhas",
@@ -203,41 +203,41 @@
       "network": "Ribeira de Coselhas",
       "policy": "voi",
       "trials": 40,
-      "success_rate": 0.5,
-      "wrong_localization_rate": 0.175,
-      "median_checks": 18.0,
+      "success_rate": 0.45,
+      "wrong_localization_rate": 0.1,
+      "median_checks": 22.0,
       "median_checks_when_successful": 9.0,
-      "mean_cost": 1.393
+      "mean_cost": 1.515
     },
     {
       "network": "Ribeira de Coselhas",
       "policy": "walk",
       "trials": 40,
-      "success_rate": 0.275,
-      "wrong_localization_rate": 0.025,
+      "success_rate": 0.35,
+      "wrong_localization_rate": 0.05,
       "median_checks": 25.0,
-      "median_checks_when_successful": 19,
-      "mean_cost": 1.544
+      "median_checks_when_successful": 20.5,
+      "mean_cost": 1.534
     },
     {
       "network": "Ribeira dos Cov\u00f5es",
       "policy": "bisect",
       "trials": 40,
       "success_rate": 0.25,
-      "wrong_localization_rate": 0.2,
+      "wrong_localization_rate": 0.175,
       "median_checks": 25.0,
       "median_checks_when_successful": 15.5,
-      "mean_cost": 1.073
+      "mean_cost": 1.074
     },
     {
       "network": "Ribeira dos Cov\u00f5es",
       "policy": "entropy",
       "trials": 40,
-      "success_rate": 0.75,
-      "wrong_localization_rate": 0.075,
-      "median_checks": 9.0,
-      "median_checks_when_successful": 8.0,
-      "mean_cost": 5.128
+      "success_rate": 0.8,
+      "wrong_localization_rate": 0.025,
+      "median_checks": 9.5,
+      "median_checks_when_successful": 9.0,
+      "mean_cost": 5.479
     },
     {
       "network": "Ribeira dos Cov\u00f5es",
@@ -246,28 +246,28 @@
       "success_rate": 0.025,
       "wrong_localization_rate": 0.0,
       "median_checks": 25.0,
-      "median_checks_when_successful": 16,
-      "mean_cost": 5.168
+      "median_checks_when_successful": 17,
+      "mean_cost": 5.181
     },
     {
       "network": "Ribeira dos Cov\u00f5es",
       "policy": "voi",
       "trials": 40,
-      "success_rate": 0.5,
-      "wrong_localization_rate": 0.075,
-      "median_checks": 22.5,
-      "median_checks_when_successful": 8.5,
-      "mean_cost": 1.429
+      "success_rate": 0.475,
+      "wrong_localization_rate": 0.125,
+      "median_checks": 19.0,
+      "median_checks_when_successful": 10,
+      "mean_cost": 1.388
     },
     {
       "network": "Ribeira dos Cov\u00f5es",
       "policy": "walk",
       "trials": 40,
       "success_rate": 0.125,
-      "wrong_localization_rate": 0.05,
+      "wrong_localization_rate": 0.025,
       "median_checks": 25.0,
       "median_checks_when_successful": 24,
-      "mean_cost": 1.57
+      "mean_cost": 1.579
     },
     {
       "network": "synthetic-1",
@@ -275,39 +275,39 @@
       "trials": 40,
       "success_rate": 0.525,
       "wrong_localization_rate": 0.075,
-      "median_checks": 16.5,
-      "median_checks_when_successful": 12,
-      "mean_cost": 0.838
+      "median_checks": 17.0,
+      "median_checks_when_successful": 13,
+      "mean_cost": 0.848
     },
     {
       "network": "synthetic-1",
       "policy": "entropy",
       "trials": 40,
-      "success_rate": 0.725,
-      "wrong_localization_rate": 0.05,
-      "median_checks": 7.0,
-      "median_checks_when_successful": 6,
-      "mean_cost": 3.695
+      "success_rate": 0.75,
+      "wrong_localization_rate": 0.075,
+      "median_checks": 8.0,
+      "median_checks_when_successful": 6.5,
+      "mean_cost": 3.537
     },
     {
       "network": "synthetic-1",
       "policy": "random",
       "trials": 40,
-      "success_rate": 0.15,
+      "success_rate": 0.175,
       "wrong_localization_rate": 0.0,
       "median_checks": 25.0,
-      "median_checks_when_successful": 6.5,
+      "median_checks_when_successful": 7,
       "mean_cost": 4.253
     },
     {
       "network": "synthetic-1",
       "policy": "voi",
       "trials": 40,
-      "success_rate": 0.6,
+      "success_rate": 0.65,
       "wrong_localization_rate": 0.025,
-      "median_checks": 12.0,
-      "median_checks_when_successful": 4.5,
-      "mean_cost": 0.988
+      "median_checks": 14.0,
+      "median_checks_when_successful": 5.0,
+      "mean_cost": 0.986
     },
     {
       "network": "synthetic-1",
@@ -315,29 +315,29 @@
       "trials": 40,
       "success_rate": 0.55,
       "wrong_localization_rate": 0.05,
-      "median_checks": 19.5,
+      "median_checks": 20.0,
       "median_checks_when_successful": 16.0,
-      "mean_cost": 1.271
+      "mean_cost": 1.29
     },
     {
       "network": "synthetic-2",
       "policy": "bisect",
       "trials": 40,
-      "success_rate": 0.45,
+      "success_rate": 0.475,
       "wrong_localization_rate": 0.075,
-      "median_checks": 23.5,
-      "median_checks_when_successful": 10.0,
-      "mean_cost": 0.915
+      "median_checks": 21.0,
+      "median_checks_when_successful": 11,
+      "mean_cost": 0.892
     },
     {
       "network": "synthetic-2",
       "policy": "entropy",
       "trials": 40,
-      "success_rate": 0.825,
-      "wrong_localization_rate": 0.125,
+      "success_rate": 0.775,
+      "wrong_localization_rate": 0.15,
       "median_checks": 7.0,
       "median_checks_when_successful": 6,
-      "mean_cost": 3.86
+      "mean_cost": 3.911
     },
     {
       "network": "synthetic-2",
@@ -353,41 +353,41 @@
       "network": "synthetic-2",
       "policy": "voi",
       "trials": 40,
-      "success_rate": 0.675,
-      "wrong_localization_rate": 0.025,
-      "median_checks": 10.5,
-      "median_checks_when_successful": 7,
-      "mean_cost": 1.058
+      "success_rate": 0.7,
+      "wrong_localization_rate": 0.075,
+      "median_checks": 11.0,
+      "median_checks_when_successful": 7.0,
+      "mean_cost": 1.049
     },
     {
       "network": "synthetic-2",
       "policy": "walk",
       "trials": 40,
-      "success_rate": 0.425,
+      "success_rate": 0.45,
       "wrong_localization_rate": 0.075,
-      "median_checks": 25.0,
-      "median_checks_when_successful": 17,
-      "mean_cost": 1.405
+      "median_checks": 24.5,
+      "median_checks_when_successful": 17.5,
+      "mean_cost": 1.401
     },
     {
       "network": "ALL",
       "policy": "bisect",
       "trials": 280,
-      "success_rate": 0.432,
-      "wrong_localization_rate": 0.136,
-      "median_checks": 22.0,
-      "median_checks_when_successful": 13,
-      "mean_cost": 0.95
+      "success_rate": 0.429,
+      "wrong_localization_rate": 0.111,
+      "median_checks": 23.0,
+      "median_checks_when_successful": 13.0,
+      "mean_cost": 0.955
     },
     {
       "network": "ALL",
       "policy": "entropy",
       "trials": 280,
-      "success_rate": 0.75,
-      "wrong_localization_rate": 0.089,
+      "success_rate": 0.743,
+      "wrong_localization_rate": 0.1,
       "median_checks": 9.0,
       "median_checks_when_successful": 8.0,
-      "mean_cost": 4.784
+      "mean_cost": 4.921
     },
     {
       "network": "ALL",
@@ -397,28 +397,28 @@
       "wrong_localization_rate": 0.004,
       "median_checks": 25.0,
       "median_checks_when_successful": 10,
-      "mean_cost": 4.757
+      "mean_cost": 4.761
     },
     {
       "network": "ALL",
       "policy": "voi",
       "trials": 280,
-      "success_rate": 0.568,
+      "success_rate": 0.557,
       "wrong_localization_rate": 0.089,
-      "median_checks": 16.0,
-      "median_checks_when_successful": 9,
-      "mean_cost": 1.264
+      "median_checks": 18.0,
+      "median_checks_when_successful": 9.5,
+      "mean_cost": 1.301
     },
     {
       "network": "ALL",
       "policy": "walk",
       "trials": 280,
-      "success_rate": 0.264,
-      "wrong_localization_rate": 0.068,
+      "success_rate": 0.275,
+      "wrong_localization_rate": 0.071,
       "median_checks": 25.0,
-      "median_checks_when_successful": 19.0,
-      "mean_cost": 1.483
+      "median_checks_when_successful": 20,
+      "mean_cost": 1.487
     }
   ],
-  "elapsed_s": 138.9
+  "elapsed_s": 171.9
 }

@@ -53,12 +53,13 @@ export default function App() {
     signOut: () => { session.set(null); setUser(null); announce('Signed out'); window.location.hash = '#/ops' },
   }
 
-  const nav: { page: Page; label: string; href: string }[] = [
-    { page: 'citizen', label: 'Report', href: '#/citizen' },
-    { page: 'public', label: 'Advisories', href: '#/public' },
-    { page: 'ops', label: 'Operations', href: route.caseId ? `#/ops/${encodeURIComponent(route.caseId)}` : '#/ops' },
-    { page: 'bench', label: 'SourceBench', href: '#/bench' },
-    { page: 'about', label: 'How it works', href: '#/about' },
+  // Short labels replace the full ones on narrow screens (CSS), so all five fit on a phone.
+  const nav: { page: Page; label: string; short: string; href: string }[] = [
+    { page: 'citizen', label: 'Report', short: 'Report', href: '#/citizen' },
+    { page: 'public', label: 'Advisories', short: 'Advisories', href: '#/public' },
+    { page: 'ops', label: 'Operations', short: 'Ops', href: route.caseId ? `#/ops/${encodeURIComponent(route.caseId)}` : '#/ops' },
+    { page: 'bench', label: 'SourceBench', short: 'Bench', href: '#/bench' },
+    { page: 'about', label: 'How it works', short: 'About', href: '#/about' },
   ]
 
   let body: ReactNode
@@ -78,7 +79,7 @@ export default function App() {
             <nav aria-label="Main">
               <ul>{nav.map((n) => (
                 <li key={n.page}><a href={n.href} aria-current={route.page === n.page ? 'page' : undefined}
-                  className={route.page === n.page ? 'on' : ''}>{n.label}</a></li>))}</ul>
+                  className={route.page === n.page ? 'on' : ''}><span className="full">{n.label}</span><span className="short">{n.short}</span></a></li>))}</ul>
             </nav>
             <span className="spacer" />
             {config?.demo && <span className="demo-badge" title="Demo mode: scenario replay and demo sign-in are enabled">Demo</span>}

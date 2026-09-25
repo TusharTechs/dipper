@@ -9,7 +9,10 @@ Option labels come from the app's public interface text. The submission JSON fie
 those question keys and must be confirmed against the ENORA back-end API before production use.
 
 Mapping to Dipper evidence:
-  * any pollution answer (turbid, foam, altered colour, polluted pipe, sewage) → a positive citizen report
+  * any pollution answer (turbid, foam, altered colour, polluted pipe, sewage) → a positive citizen report.
+    Turbid, foam and a polluted pipe also set the matching feature. "Altered colour" and "sewage discharge" add
+    no feature on purpose: the app does not say which colour (grey points to sewage, green to a bloom) or what
+    was seen, so only the general visibility of each explanation applies.
   * clear water with no pipe or sewage answer → a clean look at that point (routine assessments help too)
   * "I am not sure", missing answers, or a dry stream → no evidence
 """

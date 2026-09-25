@@ -93,7 +93,11 @@ export default function CaseMap({ reach, view, target, picked, onPick, height = 
     })
     m.on('click', (e: MapMouseEvent) => pickRef.current?.(e.lngLat.lat, e.lngLat.lng))
     map.current = m
-    return () => { m.remove(); map.current = null; ready.current = false }
+    // MapLibre only follows window resizes. Maps inside cards change size as the layout settles (fonts, the
+    // lazy-loaded map chunk, a mission appearing), so resize with the container or part of the canvas stays blank.
+    const ro = new ResizeObserver(() => m.resize())
+    ro.observe(el.current)
+    return () => { ro.disconnect(); m.remove(); map.current = null; ready.current = false }
   }, [])
 
   // A citizen mission map centres on the spot to visit; every other map fits the whole reach.

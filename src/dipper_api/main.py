@@ -12,16 +12,18 @@ Access model:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
 import logging
 import os
 import random
+import re
 import threading
 import time
 import uuid
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -29,13 +31,13 @@ from typing import Literal
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import AwareDatetime, BaseModel, Field, StrictBool
 
-from dipper_engine import Case, Context, Observation, ReachGraph
+from dipper_engine import Case, Context, Observation, ReachGraph, __version__
 from dipper_engine.fhir import FhirPushError, case_bundle, push
 from dipper_engine.graph import haversine_m
 from dipper_engine.model import CHECK_TYPES, FEATURES, NONE, OUTSIDE
@@ -53,7 +55,8 @@ from .store import Store
 ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT / ".env")  # server-side secrets such as LLM_API_KEY; never sent to the browser
 REACH_DIR = ROOT / "data" / "reaches"
-CACHE_DIR = ROOT / "data" / "cache"
+BUNDLED_CACHE = ROOT / "data" / "cache"  # weather for the scenario replay ships with the code (read-only in Docker)
+CACHE_DIRS = list(dict.fromkeys([Path(os.getenv("DIPPER_CACHE", str(BUNDLED_CACHE))), BUNDLED_CACHE]))
 MEDIA_DIR = Path(os.getenv("DIPPER_MEDIA", str(ROOT / "data" / "media")))
 WEB_DIST = ROOT / "web" / "dist"
 MAX_PHOTO_BYTES = 10 * 1024 * 1024
@@ -109,20 +112,50 @@ async def lifespan(_: FastAPI):
         users.purge_expired()
     maybe_purge(MEDIA_DIR, every_s=0)
     log.info(json.dumps({"event": "startup", "cases": len(_cases), "demo": demo_enabled()}))
-    yield
+
+    async def retention() -> None:  # photos past retention are deleted even when no new photo arrives
+        while True:
+            await asyncio.sleep(3600)
+            await asyncio.to_thread(maybe_purge, MEDIA_DIR, 0)
+            with _lock:
+                users.purge_expired()
+    task = asyncio.create_task(retention())
+    try:
+        yield
+    finally:
+        task.cancel()
 
 
-app = FastAPI(lifespan=lifespan, title="Dipper API", version="0.2.0",
+app = FastAPI(lifespan=lifespan, title="Dipper API", version=__version__,
               description="Bayesian source hunting for sewage pollution in urban streams.")
 app.state.users = users
 app.add_middleware(CORSMiddleware, allow_origins=[o for o in os.getenv("DIPPER_CORS", "http://localhost:3000").split(",") if o],
-                   allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type"])
+                   allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type", "X-Report-Token"])
 
 
 # ---- middleware: request ids, security headers, logging, rate limits -------------------
 
 RATE_LIMITS = {"/v1/signals": (30, 60), "/v1/signals/photo": (10, 60), "/v1/auth/demo": (20, 60),
-               "/v1/context/weather": (30, 60)}
+               "/v1/context/weather": (30, 60), "/v1/citizen/checks": (20, 60)}
+_CITIZEN_CHECK = re.compile(r"^/v1/citizen/cases/[^/]+/checks$")
+
+
+def _route_path(request: Request) -> str:
+    """The path inside this app. Under the single-origin site the app is mounted at /api, so strip the mount
+    prefix; otherwise limits keyed on /v1/... would silently never match in production."""
+    path, root = request.url.path, request.scope.get("root_path", "")
+    if root and path.startswith(root):
+        path = path[len(root):] or "/"
+    return path
+
+
+def _limit_for(method: str, path: str) -> tuple[str, tuple[int, int]] | None:
+    if method == "POST" and _CITIZEN_CHECK.match(path):
+        return "/v1/citizen/checks", RATE_LIMITS["/v1/citizen/checks"]
+    if method == "POST" or path == "/v1/context/weather":
+        lim = RATE_LIMITS.get(path)
+        return (path, lim) if lim else None
+    return None
 _hits: dict[tuple[str, str], deque] = defaultdict(deque)
 # Number of reverse proxies in front of the app. X-Forwarded-For is client-controlled, so it is only used
 # when a proxy is declared, and then only the entry that proxy appended (counted from the right).
@@ -146,14 +179,14 @@ def _prune_hits(now: float) -> None:
 @app.middleware("http")
 async def _edge(request: Request, call_next):
     rid = request.headers.get("x-request-id") or uuid.uuid4().hex[:12]
-    path = request.url.path
-    limit = RATE_LIMITS.get(path) if request.method == "POST" or path == "/v1/context/weather" else None
-    if limit:
-        n, window = limit
+    path = _route_path(request)
+    rule = _limit_for(request.method, path)
+    if rule:
+        bucket, (n, window) = rule
         now = time.monotonic()
         if len(_hits) > 5000:
             _prune_hits(now)
-        q = _hits[(path, _client_key(request))]
+        q = _hits[(bucket, _client_key(request))]
         while q and now - q[0] > window:
             q.popleft()
         if len(q) >= n:
@@ -209,7 +242,7 @@ def _new_case(reach_id: str, opened_at: datetime | None, weather: "WeatherIn | N
         ctx = Context(rain_48h_mm=weather.rain_48h_mm, tmax_c=weather.tmax_c, dry_days=weather.dry_days, hour=when.hour)
     else:
         mid = next(iter(g.nodes.values()))
-        ctx = fetch_context(mid.lat, mid.lon, when, cache_dir=CACHE_DIR)
+        ctx = fetch_context(mid.lat, mid.lon, when, cache_dir=CACHE_DIRS)
     cid = f"C-{store.next_number():03d}"
     case = Case(cid, g, ctx, opened_at=when)
     _cases[cid], _reach_of[cid] = case, reach_id
@@ -259,6 +292,10 @@ class SignalIn(BaseModel):
                                             description=f"Any of {', '.join(FEATURES)}")
     observer: str | None = Field(None, max_length=64, pattern=r"^[A-Za-z0-9_.:-]*$",
                                  description="Device-local random id; pseudonymised on the server, never an email or name")
+    observed_at: AwareDatetime | None = Field(None, description="When it was seen, for reports queued offline "
+                                              "(at most 7 days ago); defaults to now")
+    client_id: str | None = Field(None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$",
+                                  description="Random id per report; a repeated id returns the first result")
 
 
 class CheckIn(BaseModel):
@@ -271,8 +308,7 @@ class CheckIn(BaseModel):
 
 class CitizenCheckIn(BaseModel):
     mission_key: str = Field(max_length=120)
-    positive: bool
-    observer: str | None = Field(None, max_length=64, pattern=r"^[A-Za-z0-9_.:-]*$")
+    positive: StrictBool
 
 
 class ActionIn(BaseModel):
@@ -283,7 +319,7 @@ class ActionIn(BaseModel):
 
 
 class DemoIn(BaseModel):
-    role: Literal["inspector", "public_health", "admin"]
+    role: Literal["inspector", "public_health"]  # never admin: demo tokens are handed to anyone who asks
 
 
 class SimIn(BaseModel):
@@ -320,7 +356,7 @@ def auth_demo(body: DemoIn) -> dict:
     """Short-lived demo sign-in for evaluators. Disabled unless DIPPER_DEMO=1."""
     if not demo_enabled():
         raise HTTPException(404, "demo sign-in is disabled")
-    names = {"inspector": "Demo investigator", "public_health": "Demo public-health officer", "admin": "Demo admin"}
+    names = {"inspector": "Demo investigator", "public_health": "Demo public-health officer"}
     user, token = users.create(names[body.role], body.role, ttl_s=4 * 3600, demo=True)
     return {"token": token, "user": user.__dict__}
 
@@ -370,12 +406,47 @@ def _record_report(reach_id: str, lat: float, lon: float, features: dict[str, bo
     return case, node, dist
 
 
+_seen_reports: "OrderedDict[str, dict]" = OrderedDict()   # client_id -> first response (bounded)
+
+
+def _report_token(case_id: str, index: int) -> str:
+    """Capability for the citizen who made report `index` of a case: read their case summary and answer its
+    missions. Stateless (keyed hash) and never logged; case ids alone are guessable, this is not."""
+    mac = hmac.new(PEPPER, f"report:{case_id}:{index}".encode(), hashlib.sha256).hexdigest()[:32]
+    return f"{index}.{mac}"
+
+
+def _report_for(case: Case, token: str | None) -> Observation:
+    """The citizen report a token was issued for, or 403."""
+    try:
+        idx_s, mac = (token or "").split(".", 1)
+        idx = int(idx_s)
+        ok = hmac.compare_digest(_report_token(case.id, idx), f"{idx}.{mac}")
+        obs = case.belief.observations[idx]
+    except (ValueError, IndexError):
+        ok = False
+    if not ok or obs.kind != "report" or obs.role != "citizen":
+        raise HTTPException(403, "this link is only for the person who sent the report")
+    return obs
+
+
 @app.post("/v1/signals")
 def post_signal(body: SignalIn) -> dict:
+    now = datetime.now(timezone.utc)
+    seen = body.observed_at or now
+    if seen > now + timedelta(minutes=5) or seen < now - timedelta(days=7):
+        raise HTTPException(422, "observed_at must be within the last 7 days")
     with _lock:
-        case, node, dist = _record_report(body.reach_id, body.lat, body.lon, body.features, body.observer,
-                                          datetime.now(timezone.utc))
-        return {"case_id": case.id, "snap_distance_m": round(dist, 1), "status": case.status}
+        if body.client_id and body.client_id in _seen_reports:
+            return _seen_reports[body.client_id]  # a retried or twice-flushed offline report
+        case, node, dist = _record_report(body.reach_id, body.lat, body.lon, body.features, body.observer, seen)
+        out = {"case_id": case.id, "snap_distance_m": round(dist, 1), "status": case.status,
+               "report_token": _report_token(case.id, len(case.belief.observations) - 1)}
+        if body.client_id:
+            _seen_reports[body.client_id] = out
+            while len(_seen_reports) > 20000:
+                _seen_reports.popitem(last=False)
+        return out
 
 
 @app.post("/v1/signals/photo")
@@ -431,7 +502,7 @@ def post_signal_photo(
             photo_out |= {"status": "not_analysed", "reason": "the photo model failed; your report was still recorded"}
     with _lock:
         return {"case_id": case.id, "snap_distance_m": round(dist, 1), "status": case.status, "photo": photo_out,
-                "ledger": [e.text for e in case.belief.ledger[first:]]}
+                "report_token": _report_token(case.id, first), "ledger": [e.text for e in case.belief.ledger[first:]]}
 
 
 MISSION_POOL = 12            # citizen checks considered for a mission
@@ -441,69 +512,73 @@ WALK_COST_PER_KM = 0.08      # score given up per km a volunteer must walk (same
 def _missions(case: Case, k: int = MISSION_POOL) -> list:
     if case.status not in ("open", "localizing"):
         return []
-    return recommend(case.belief, case.stakes, k=k, roles=("citizen",))
+    return case.ranked(k, ("citizen",))
 
 
 def _mission_node(g, r) -> str:
     return g.candidate(r.check.candidate_id).node_id if r.check.candidate_id else r.check.node_id
 
 
-def _pick_mission(case: Case, lat: float | None, lon: float | None):
-    """The most useful citizen check after charging for the walk from where the citizen is standing.
-    Without a location, the most useful check overall."""
+def _pick_mission(case: Case, report: Observation):
+    """The most useful citizen check after charging for the walk from where this citizen reported.
+    The location comes from their stored report, so the client never has to send it again."""
     pool = _missions(case)
     if not pool:
         return None, None
-    if lat is None or lon is None:
-        return pool[0], None
     g = case.graph
-    walks = [haversine_m(lat, lon, g.nodes[_mission_node(g, r)].lat, g.nodes[_mission_node(g, r)].lon) for r in pool]
+    here = g.nodes[report.node_id]
+    walks = [haversine_m(here.lat, here.lon, g.nodes[_mission_node(g, r)].lat, g.nodes[_mission_node(g, r)].lon)
+             for r in pool]
     i = max(range(len(pool)), key=lambda j: pool[j].score - WALK_COST_PER_KM * walks[j] / 1000)
     return pool[i], walks[i]
 
 
+def _answered(case: Case, report: Observation, key: str) -> bool:
+    return report.observer is not None and any(
+        o.observer == report.observer and o.kind != "report" and
+        f"{o.kind}:{o.candidate_id or o.node_id}:citizen" == key for o in case.belief.observations)
+
+
 @app.get("/v1/citizen/cases/{case_id}")
-def citizen_case(case_id: str, lat: float | None = Query(None, ge=-90, le=90),
-                 lon: float | None = Query(None, ge=-180, le=180)) -> dict:
-    """What a citizen may see: status, their mission, what happened, any published advisory. No outfall ranking.
-    `lat`/`lon` (optional, never stored) let the mission favour a spot within a short walk."""
+def citizen_case(case_id: str, x_report_token: str | None = Header(None)) -> dict:
+    """What the reporting citizen may see: status, one mission near where they reported, what happened, any
+    published advisory. Never the outfall ranking. Needs the token returned with their report."""
     with _lock:
         c = get_case(case_id)
+        report = _report_for(c, x_report_token)
         g = c.graph
         mission = None
-        r, walk = _pick_mission(c, lat, lon)
-        if r:
-            nid = _mission_node(g, r)
-            nd = g.nodes[nid]
-            where = g.candidate(r.check.candidate_id).label if r.check.candidate_id else g.node_label(nid)
-            mission = {"key": r.check.key(), "type": r.check.check_type, "where": where, "lat": nd.lat, "lon": nd.lon,
+        r, walk = _pick_mission(c, report)
+        if r and not _answered(c, report, r.check.key()):
+            nd = g.nodes[_mission_node(g, r)]
+            mission = {"key": r.check.key(), "type": r.check.check_type, "lat": nd.lat, "lon": nd.lon,
+                       "kind": "outfall" if r.check.candidate_id else "stream",
                        "km_above_outlet": round(nd.dist_to_outlet_m / 1000, 1),
-                       "outfall": g.candidate(r.check.candidate_id).label if r.check.candidate_id else None,
-                       "walk_m": round(walk) if walk is not None else None,
-                       "if_clean": r.if_negative.zone, "if_polluted": r.if_positive.zone}
+                       "walk_m": round(walk) if walk is not None else None}
         return {"id": c.id, "reach": g.name, "status": c.status,
                 "reports": sum(1 for o in c.belief.observations if o.kind == "report" and o.role == "citizen"),
                 "checks": sum(1 for o in c.belief.observations if o.kind != "report"),
                 "mission": mission,
-                "advisory": c.advisory_draft()["text"] if c.advisory_active else None,
+                "advisory": c.published_advisory_text,
                 "history": [{"at": a.at.isoformat(), "type": a.type} for a in c.actions]}
 
 
 @app.post("/v1/citizen/cases/{case_id}/checks")
-def citizen_check(case_id: str, body: CitizenCheckIn) -> dict:
-    """A citizen answers one of the case's current citizen missions (and only those)."""
+def citizen_check(case_id: str, body: CitizenCheckIn, x_report_token: str | None = Header(None)) -> dict:
+    """The reporting citizen answers one of the case's current citizen missions, once."""
     with _lock:
         c = get_case(case_id)
+        report = _report_for(c, x_report_token)
         before = c.belief.location_entropy()
         mission = next((r for r in _missions(c) if r.check.key() == body.mission_key), None)
         if mission is None:
             raise HTTPException(409, "this mission is no longer open; refresh to get a new one")
+        if _answered(c, report, body.mission_key):
+            raise HTTPException(409, "you already answered this mission")
         chk = mission.check
         _add(c, Observation(chk.check_type, body.positive, node_id=chk.node_id, candidate_id=chk.candidate_id,
-                            role="citizen", observed_at=datetime.now(timezone.utc), observer=pseudonym(body.observer)))
-        branch = mission.if_positive if body.positive else mission.if_negative
-        return {"status": c.status, "search_narrowed_bits": round(before - c.belief.location_entropy(), 2),
-                "now_most_likely_in": branch.zone}
+                            role="citizen", observed_at=datetime.now(timezone.utc), observer=report.observer))
+        return {"status": c.status, "search_narrowed_bits": round(before - c.belief.location_entropy(), 2)}
 
 
 @app.get("/v1/public/advisories")
@@ -522,7 +597,7 @@ def public_advisories() -> list[dict]:
             path = g.downstream_path(start)[1:]  # begin just below the entry point, never at it
             coords = [[round(g.nodes[n].lon, 5), round(g.nodes[n].lat, 5)] for n in path]
             out.append({"case": c.id, "reach": g.name, "city": g.city, "issued_at": adv[-1].at.isoformat(),
-                        "text": c.advisory_draft()["text"], "stretch": {"type": "LineString", "coordinates": coords},
+                        "text": c.published_advisory_text, "stretch": {"type": "LineString", "coordinates": coords},
                         "simulated": c.id in _scenario_truth})
     return out
 
@@ -599,7 +674,7 @@ def case_fhir_push(case_id: str, user: User = Depends(require("inspector"))) -> 
 def recommendations(case_id: str, k: int = Query(5, ge=1, le=20), user: User = Depends(require_staff)) -> list[dict]:
     with _lock:
         c = get_case(case_id)
-        return [r.as_dict() for r in recommend(c.belief, c.stakes, k=k)]
+        return [r.as_dict() for r in c.ranked(k, distinct=True)]
 
 
 @app.post("/v1/cases/{case_id}/checks")
@@ -722,7 +797,7 @@ def weather(lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=18
     near = any(reach(p.stem).nearest_node(lat, lon)[1] < 5000 for p in REACH_DIR.glob("*.geojson"))
     if not near:
         raise HTTPException(422, "weather is only available near a mapped stream")
-    ctx = fetch_context(lat, lon, when, cache_dir=CACHE_DIR)
+    ctx = fetch_context(lat, lon, when, cache_dir=CACHE_DIRS)
     return {"regime": ctx.regime, "summary": ctx.describe(), **ctx.__dict__, "source": "Open-Meteo (CC BY 4.0)"}
 
 

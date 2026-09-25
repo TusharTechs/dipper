@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from . import __version__
 from .belief import Belief, Observation
 from .exposure import exposure_report, stakes
 from .graph import ReachGraph
@@ -20,6 +21,34 @@ class Action:
     at: datetime
     approver: str | None
     payload: dict[str, Any] = field(default_factory=dict)
+
+
+# Public advisories are written in English and in the language of the pilot city. Draft wording; a
+# public-health officer approves each text, and native speakers should review the templates before a pilot.
+LOCAL_LANGUAGE = {"Coimbra": "pt", "Oslo": "nb", "Ghent": "nl", "Gent": "nl"}
+
+
+def _pt_of(reach: str) -> str:
+    """Portuguese contraction for a stream name: 'da Ribeira ...', 'do Rio ...'."""
+    first = reach.split()[0].lower() if reach else ""
+    return "da" if first in ("ribeira", "vala") else "do" if first in ("rio", "ribeiro", "regato") else "de"
+
+
+def advisory_text(reach: str, city: str) -> dict[str, str]:
+    text = {"en": (f"Avoid contact with the water and keep dogs out of {reach} downstream of the affected stretch "
+                   "until further notice. Reason: probable sewage discharge, not yet confirmed by a lab.")}
+    lang = LOCAL_LANGUAGE.get(city)
+    if lang == "pt":
+        text["pt"] = (f"Evite o contacto com a água e mantenha os cães fora {_pt_of(reach)} {reach}, a jusante do troço "
+                      "afetado, até novo aviso. Motivo: provável descarga de esgoto, ainda sem confirmação laboratorial.")
+    elif lang == "nb":
+        text["nb"] = (f"Unngå kontakt med vannet og hold hunder unna {reach} nedstrøms for den berørte strekningen "
+                      "inntil videre. Årsak: sannsynlig kloakkutslipp, ennå ikke bekreftet av laboratorium.")
+    elif lang == "nl":
+        text["nl"] = (f"Vermijd contact met het water en houd honden uit de {reach}, stroomafwaarts van het getroffen "
+                      "deel, tot nader bericht. Reden: waarschijnlijk lozing van rioolwater, nog niet bevestigd door "
+                      "een laboratorium.")
+    return text
 
 
 class Case:
@@ -74,7 +103,7 @@ class Case:
         if type_ == "lift_advisory" and not self.advisory_active:
             raise ValueError("there is no published advisory to lift")
         snapshot = {"status_before": self.status, "p_harmful": round(self.belief.p_harmful(), 4),
-                    "top_source": list(self.belief.top_source()), "model_version": "0.2.0"}
+                    "top_source": list(self.belief.top_source()), "model_version": __version__}
         a = Action(type=type_, at=at or datetime.now(timezone.utc), approver=approver,
                    payload={**(payload or {}), "seen": (payload or {}).get("seen", snapshot)})
         self.actions.append(a)
@@ -97,6 +126,14 @@ class Case:
             elif a.type == "follow_up" and after_fix:
                 clean = bool(a.payload.get("clean"))
         return after_fix and clean
+
+    @property
+    def published_advisory_text(self) -> dict[str, str] | None:
+        """The wording a public-health officer approved (kept with the approval), not a fresh draft."""
+        adv = [a for a in self.actions if a.type == "advisory"]
+        if not self.advisory_active or not adv:
+            return None
+        return adv[-1].payload.get("text") or self.advisory_draft()["text"]
 
     @property
     def advisory_active(self) -> bool:
@@ -162,14 +199,21 @@ class Case:
         reach = self.graph.name
         return {
             "tiers": {"observed": observed, "inferred": inferred, "possible_risk": risk, "needs_confirmation": confirm},
-            "text": {
-                "en": (f"Avoid contact with the water and keep dogs out of {reach} downstream of the affected stretch "
-                       "until further notice. Reason: probable sewage discharge, not yet confirmed by a lab."),
-                "pt": (f"Evite o contacto com a água e mantenha os cães fora da {reach}, a jusante do troço afetado, "
-                       "até novo aviso. Motivo: provável descarga de esgoto, ainda sem confirmação laboratorial."),
-            },
+            "text": advisory_text(reach, self.graph.city),
             "suggested": should_advise(b.p_harmful(), self.stakes, b.params),
         }
+
+    def ranked(self, k: int, roles: tuple[str, ...] | list[str] = ("citizen", "trained", "inspector"),
+               distinct: bool = False) -> list:
+        """Recommendations, cached until new evidence arrives: ranking every check is the costliest step,
+        and page views far outnumber updates."""
+        key = (len(self.belief.observations), k, tuple(roles), distinct, round(self.stakes, 9))
+        cache = self.__dict__.setdefault("_ranked", {})
+        if key not in cache:
+            if any(kk[0] != key[0] for kk in cache):
+                cache.clear()
+            cache[key] = recommend(self.belief, self.stakes, k=k, roles=tuple(roles), distinct=distinct)
+        return cache[key]
 
     # ---- view -------------------------------------------------------------------
     def _obs_view(self, o: Observation) -> dict[str, Any]:
@@ -192,7 +236,7 @@ class Case:
         ribbon = [{"node_id": n.id, "lat": n.lat, "lon": n.lon, "p_polluted": round(b.p_polluted_at(n.id), 4)}
                   for n in self.graph.nodes.values()]
         p_harm = b.p_harmful()
-        recs = recommend(b, self.stakes, k=n_recommendations, roles=roles)
+        recs = self.ranked(n_recommendations, roles, distinct=True)
         return {
             "id": self.id, "reach": self.graph.name, "city": self.graph.city, "status": self.status,
             "opened_at": self.opened_at.isoformat(),
@@ -213,5 +257,5 @@ class Case:
             "exposure": exposure_report(b),
             "recommendations": [r.as_dict() for r in recs],
             "actions": [{"type": a.type, "at": a.at.isoformat(), "approver": a.approver, "payload": a.payload} for a in self.actions],
-            "model": {"version": "0.1.0", "note": "Likelihoods are literature and expert starting values; see docs/model-card.md."},
+            "model": {"version": __version__, "note": "Likelihoods are literature and expert starting values; see docs/model-card.md."},
         }

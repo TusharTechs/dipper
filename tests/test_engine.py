@@ -153,3 +153,25 @@ def test_unknown_weather_widens_priors(graph):
     mh = b.marginal_h()
     assert 0.05 < mh["overflow"] < 0.3
     assert OUTSIDE in b.marginal_s()
+
+
+def test_a_late_clean_check_is_scored_outside_the_burst_window(graph):
+    """Regression: the clock must move before scoring, so a check 12 h later is not treated as mid-burst."""
+    node = lowest_access(graph)
+    look = lambda at: Observation("instream_look", False, node_id=node, observed_at=at)
+    soon, late = seeded_belief(graph), seeded_belief(graph)
+    soon.update(look(T0 + timedelta(minutes=30)))
+    assert soon._activity("foul") == pytest.approx(ModelParams().activity_persist)
+    late.update(look(T0 + timedelta(hours=12)))
+    assert not late._persisting
+    # a clean check inside the burst is stronger evidence against a source upstream than one hours later
+    assert soon.ledger[-1].entropy_after_bits != late.ledger[-1].entropy_after_bits
+
+
+def test_day_and_night_activity_follow_the_local_time_of_each_observation(graph):
+    graph.meta["tz"] = "Europe/Lisbon"
+    b = seeded_belief(graph)                                   # report at 10:00 Lisbon time
+    b.update(Observation("instream_look", False, node_id=lowest_access(graph),
+                         observed_at=datetime(2026, 9, 19, 1, 30, tzinfo=timezone.utc)))  # 02:30 Lisbon, next night
+    assert not b._act_ctx.daytime
+    assert b._activity("foul") == pytest.approx(ModelParams().activity_night["foul"])

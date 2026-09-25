@@ -25,7 +25,7 @@ DIP_CS = f"{DIP}/CodeSystem/dipper-codes"
 SCT = "http://snomed.info/sct"
 BASE = "https://example.org/fhir/dipper-demo"
 IDS = "urn:dipper"   # identifier namespaces (example.org is not allowed for identifier systems)
-ENGINE_VERSION = "0.1.0"
+from . import __version__ as ENGINE_VERSION
 
 FEATURE_CODES = {
     "grey": (DIP_CS, "grey-discolouration", "Grey or milky water"),

@@ -165,10 +165,24 @@ def evaluate(belief: Belief, check: ProposedCheck, stakes: float) -> Recommendat
 
 
 def recommend(belief: Belief, stakes: float, k: int = 5, roles: Iterable[str] = ("citizen", "trained", "inspector"),
-              exclude: set[str] | None = None) -> list[Recommendation]:
+              exclude: set[str] | None = None, distinct: bool = False) -> list[Recommendation]:
+    """Top-k checks by score. With `distinct`, a check whose outcomes are the same as a better-ranked check of
+    the same type (for example the next access point along the same stretch) is left out, so a list shown to
+    people offers real alternatives. The best check is always first either way."""
     recs = [evaluate(belief, c, stakes) for c in enumerate_checks(belief, roles) if not exclude or c.key() not in exclude]
     recs.sort(key=lambda r: -r.score)
-    return recs[:k]
+    if not distinct:
+        return recs[:k]
+    out, seen = [], set()
+    for r in recs:
+        sig = (r.check.check_type, r.check.role, r.if_positive.zone, r.if_negative.zone)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        out.append(r)
+        if len(out) == k:
+            break
+    return out
 
 
 def _check_label(belief: Belief, check: ProposedCheck) -> str:

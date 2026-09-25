@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useAnnounce, useAuth } from './App'
 import CaseMap from './Map'
+import { LANG_NAME, type Lang } from './i18n'
 import { api, pct, STATUS_LABEL, type CaseView, type GeoJSON, type Recommendation } from './api'
 
 type Tab = 'investigation' | 'advisory' | 'handoff' | 'timeline'
@@ -222,8 +223,8 @@ function AdvisoryPanel({ view, canApprove, busy, onApprove, onLift }:
       <ol className="tiers">{tiers.map(([t, hint, text]) => (
         <li key={t} className="tier-card"><h3>{t} <span className="muted small">· {hint}</span></h3><p>{text}</p></li>))}</ol>
       <div className="grid2">
-        <section className="card" lang="en"><h3>Public text · English</h3><p>{d.text.en}</p></section>
-        <section className="card" lang="pt"><h3>Texto público · Português</h3><p>{d.text.pt}</p></section>
+        {Object.entries(d.text).map(([l, text]) => (
+          <section key={l} className="card" lang={l}><h3 lang="en">Public text · {LANG_NAME[l as Lang] ?? l}</h3><p>{text}</p></section>))}
       </div>
       {view.advisory_active && published ? (<>
         <p className="done">Published {new Date(published.at).toLocaleString()} by {published.approver}. <a href="#/public">See the public advisory map</a>.</p>

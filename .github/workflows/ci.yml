@@ -35,6 +35,28 @@ jobs:
       - name: Type-check and build
         run: npm run build
 
+  accessibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.5"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: uv sync --frozen
+      - run: npm --prefix web ci --no-audit --no-fund && npm --prefix web run build
+      - name: Start the single-origin site in demo mode
+        run: |
+          DIPPER_DEMO=1 DIPPER_DB=/tmp/a11y.sqlite3 DIPPER_MEDIA=/tmp/a11y-media \
+            uv run uvicorn dipper_api.main:site --port 8000 > /tmp/site.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://localhost:8000/api/ready && break; sleep 2; done
+      - name: axe-core audit (WCAG 2.2 AA) at desktop, phone and 320 px
+        run: npm --prefix web run a11y -- http://localhost:8000
+
   fhir:
     runs-on: ubuntu-latest
     steps:

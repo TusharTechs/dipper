@@ -31,7 +31,7 @@ COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 # /app/state, which docker-compose.yml mounts as a volume.
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin dipper \
     && mkdir -p /app/state && chown dipper:dipper /app/state
-ENV DIPPER_DB=/app/state/dipper.sqlite3 DIPPER_MEDIA=/app/state/media PORT=8000 PATH="/app/.venv/bin:$PATH"
+ENV DIPPER_DB=/app/state/dipper.sqlite3 DIPPER_MEDIA=/app/state/media DIPPER_CACHE=/app/state/cache PORT=8000 PATH="/app/.venv/bin:$PATH"
 USER dipper
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

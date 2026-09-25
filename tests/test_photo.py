@@ -181,9 +181,9 @@ def test_provider_selection(monkeypatch):
     from dipper_engine.photo import vision_provider
     for v in ("DIPPER_VISION_PROVIDER", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "LLM_API_KEY"):
         monkeypatch.delenv(v, raising=False)
-    assert vision_provider() == "anthropic"
+    assert vision_provider() == "none"
     monkeypatch.setenv("LLM_API_KEY", "x")  # a generic key alone never selects (or reaches) Google
-    assert vision_provider() == "anthropic"
+    assert vision_provider() == "none"
     monkeypatch.setenv("GEMINI_API_KEY", "x")
     assert vision_provider() == "gemini"
     monkeypatch.setenv("ANTHROPIC_API_KEY", "y")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -14,10 +15,15 @@ ARCHIVE = "https://archive-api.open-meteo.com/v1/archive"
 FORECAST = "https://api.open-meteo.com/v1/forecast"
 
 
-def _fetch_hourly(lat: float, lon: float, start: datetime, end: datetime, cache_dir: Path | None) -> dict:
+def _fetch_hourly(lat: float, lon: float, start: datetime, end: datetime,
+                  cache_dir: Path | Sequence[Path] | None) -> dict:
+    """Hourly weather, from the first cache directory that has it, else Open-Meteo. New downloads are written to
+    the first directory; a read-only one (the bundled data in a container) is fine, the cache is an optimisation."""
+    dirs = [cache_dir] if isinstance(cache_dir, Path) else list(cache_dir or [])
     key = f"openmeteo_{lat:.3f}_{lon:.3f}_{start:%Y%m%d}_{end:%Y%m%d}.json"
-    if cache_dir and (cache_dir / key).exists():
-        return json.loads((cache_dir / key).read_text())
+    for d in dirs:
+        if (d / key).exists():
+            return json.loads((d / key).read_text())
     recent = (datetime.now(timezone.utc).date() - end.date()).days < 6
     params = {"latitude": lat, "longitude": lon, "hourly": "precipitation,temperature_2m", "timezone": "UTC"}
     if recent:
@@ -30,9 +36,12 @@ def _fetch_hourly(lat: float, lon: float, start: datetime, end: datetime, cache_
     r = httpx.get(url, params=params, timeout=30, headers={"User-Agent": "dipper-hackathon/0.1"})
     r.raise_for_status()
     data = r.json()
-    if cache_dir:
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        (cache_dir / key).write_text(json.dumps(data))
+    if dirs:
+        try:
+            dirs[0].mkdir(parents=True, exist_ok=True)
+            (dirs[0] / key).write_text(json.dumps(data))
+        except OSError:
+            pass
     return data
 
 
@@ -58,7 +67,7 @@ def context_from_hourly(data: dict, when: datetime) -> Context:
                    tmax_c=max(day_t) if day_t else None, hour=when.hour, dry_days=dry)
 
 
-def fetch_context(lat: float, lon: float, when: datetime, cache_dir: Path | None = None) -> Context:
+def fetch_context(lat: float, lon: float, when: datetime, cache_dir: Path | Sequence[Path] | None = None) -> Context:
     """Context for a case at `when` (timezone-aware). Falls back to 'weather unknown' on failure."""
     try:
         data = _fetch_hourly(lat, lon, when - timedelta(days=30), when, cache_dir)

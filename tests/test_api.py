@@ -77,43 +77,78 @@ def test_citizen_flow_uses_safe_endpoints_and_missions_only(api):
     nd = _node(main)
     r = client.post("/v1/signals", json={"reach_id": "coimbra-ribeira-de-coselhas", "lat": nd.lat, "lon": nd.lon,
                                          "features": {"grey": True}, "observer": "cit-1"}).json()
-    cid = r["case_id"]
-    summary = client.get(f"/v1/citizen/cases/{cid}").json()
+    cid, tok = r["case_id"], {"X-Report-Token": r["report_token"]}
+    # the case summary and missions are only for the person who reported
+    assert client.get(f"/v1/citizen/cases/{cid}").status_code == 403
+    assert client.get(f"/v1/citizen/cases/{cid}", headers={"X-Report-Token": "0.forged"}).status_code == 403
+    summary = client.get(f"/v1/citizen/cases/{cid}", headers=tok).json()
     assert "sources" not in summary and "ledger" not in summary and summary["mission"]["key"]
-    bad = client.post(f"/v1/citizen/cases/{cid}/checks", json={"mission_key": "lab_ecoli:x:inspector", "positive": True})
+    assert "outfall" not in summary["mission"] and "where" not in summary["mission"]   # no outfall labels
+    bad = client.post(f"/v1/citizen/cases/{cid}/checks", json={"mission_key": "lab_ecoli:x:inspector", "positive": True},
+                      headers=tok)
     assert bad.status_code == 409
-    ok = client.post(f"/v1/citizen/cases/{cid}/checks", json={"mission_key": summary["mission"]["key"], "positive": False})
-    assert ok.status_code == 200 and "now_most_likely_in" in ok.json()
+    key = summary["mission"]["key"]
+    assert client.post(f"/v1/citizen/cases/{cid}/checks", json={"mission_key": key, "positive": False}).status_code == 403
+    ok = client.post(f"/v1/citizen/cases/{cid}/checks", json={"mission_key": key, "positive": False}, headers=tok)
+    assert ok.status_code == 200 and "search_narrowed_bits" in ok.json()
+    again = client.post(f"/v1/citizen/cases/{cid}/checks", json={"mission_key": key, "positive": True}, headers=tok)
+    assert again.status_code == 409                                   # one answer per mission per report
     # a second report on the same reach joins the same open case
     r2 = client.post("/v1/signals", json={"reach_id": "coimbra-ribeira-de-coselhas", "lat": nd.lat, "lon": nd.lon,
                                           "features": {"foam": True}}).json()
     assert r2["case_id"] == cid
 
 
+def test_offline_reports_keep_their_time_and_are_counted_once(api):
+    from datetime import datetime, timedelta, timezone
+    main, client = api
+    nd = _node(main)
+    seen = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
+    body = {"reach_id": "coimbra-ribeira-de-coselhas", "lat": nd.lat, "lon": nd.lon, "features": {"grey": True},
+            "observed_at": seen, "client_id": "rep-0123456789"}
+    first = client.post("/v1/signals", json=body).json()
+    second = client.post("/v1/signals", json=body).json()               # the queue flushed twice
+    assert first == second
+    case = main._cases[first["case_id"]]
+    assert len(case.belief.observations) == 1
+    assert case.belief.observations[0].observed_at == datetime.fromisoformat(seen)
+    old = dict(body, client_id="rep-abcdefghij", observed_at=(datetime.now(timezone.utc) - timedelta(days=9)).isoformat())
+    assert client.post("/v1/signals", json=old).status_code == 422
+
+
+def test_rate_limits_apply_under_the_single_origin_site(api):
+    main, _ = api
+    nd = _node(main)
+    with TestClient(main.site) as site:
+        codes = [site.post("/api/v1/signals", json={"reach_id": "coimbra-ribeira-de-coselhas", "lat": nd.lat,
+                                                     "lon": nd.lon, "features": {}}).status_code for _ in range(32)]
+    assert codes[0] == 200 and 429 in codes
+
+
+def test_demo_sign_in_never_issues_admin_tokens(api):
+    _, client = api
+    assert client.post("/v1/auth/demo", json={"role": "admin"}).status_code == 422
+
+
 def test_citizen_mission_prefers_a_spot_within_walking_distance(api):
     main, client = api
     g = main.reach("coimbra-ribeira-de-coselhas")
     nd = sorted((n for n in g.nodes.values() if n.access), key=lambda n: n.dist_to_outlet_m)[len(g.nodes) // 20]
-    cid = client.post("/v1/signals", json={"reach_id": g_id(), "lat": nd.lat, "lon": nd.lon,
-                                           "features": {"grey": True, "sewage_odour": True}}).json()["case_id"]
-    far = client.get(f"/v1/citizen/cases/{cid}").json()["mission"]
-    near = client.get(f"/v1/citizen/cases/{cid}", params={"lat": nd.lat, "lon": nd.lon}).json()["mission"]
-    assert far["walk_m"] is None and near["walk_m"] is not None
+    r = client.post("/v1/signals", json={"reach_id": g_id(), "lat": nd.lat, "lon": nd.lon,
+                                         "features": {"grey": True, "sewage_odour": True}}).json()
+    cid, tok = r["case_id"], {"X-Report-Token": r["report_token"]}
+    mission = client.get(f"/v1/citizen/cases/{cid}", headers=tok).json()["mission"]
+    here = g.nodes[main._cases[cid].belief.observations[0].node_id]
     pool = main._missions(main._cases[cid])
-    walk = lambda r: main.haversine_m(nd.lat, nd.lon, g.nodes[main._mission_node(g, r)].lat, g.nodes[main._mission_node(g, r)].lon)
+    walk = lambda r: main.haversine_m(here.lat, here.lon, g.nodes[main._mission_node(g, r)].lat,
+                                      g.nodes[main._mission_node(g, r)].lon)
     best = max(r.score - main.WALK_COST_PER_KM * walk(r) / 1000 for r in pool)
-    chosen = next(r for r in pool if r.check.key() == near["key"])
+    chosen = next(r for r in pool if r.check.key() == mission["key"])
     assert chosen.score - main.WALK_COST_PER_KM * walk(chosen) / 1000 == pytest.approx(best)
-    assert near["walk_m"] <= far_walk(main, g, nd, pool, far["key"]) + 1
-    # the nearby mission is still one the citizen may answer
-    ok = client.post(f"/v1/citizen/cases/{cid}/checks", json={"mission_key": near["key"], "positive": False})
+    assert mission["walk_m"] <= walk(pool[0]) + 1                      # never further than the best check overall
+    ok = client.post(f"/v1/citizen/cases/{cid}/checks", json={"mission_key": mission["key"], "positive": False},
+                     headers=tok)
     assert ok.status_code == 200
-
-
-def far_walk(main, g, nd, pool, key):
-    r = next(r for r in pool if r.check.key() == key)
-    n = g.nodes[main._mission_node(g, r)]
-    return main.haversine_m(nd.lat, nd.lon, n.lat, n.lon)
 
 
 def g_id():
@@ -304,10 +339,28 @@ def test_a_fix_is_verified_only_after_a_clean_follow_up_and_advisories_can_be_li
     assert act({"type": "lift_advisory"}).status_code == 403                  # inspector may not
     assert act({"type": "lift_advisory"}, ph).status_code == 200
     assert client.get("/v1/public/advisories").json() == []
-    assert client.get(f"/v1/citizen/cases/{cid}").json()["advisory"] is None
+    tok = {"X-Report-Token": main._report_token(cid, 0)}           # the replay's first citizen report
+    assert client.get(f"/v1/citizen/cases/{cid}", headers=tok).json()["advisory"] is None
     flag = [e["resource"] for e in client.get(f"/v1/cases/{cid}/fhir", headers=inv).json()["entry"]
             if e["resource"]["resourceType"] == "Flag"][0]
     assert flag["status"] == "inactive" and "end" in flag["period"]
     # the audit trail survives a restart with the same state
     reloaded, _, _ = main.Store(Path(os.environ["DIPPER_DB"])).load_all(main.reach)
     assert reloaded[cid].status == "verified" and not reloaded[cid].advisory_active
+
+
+def test_weather_cache_that_cannot_be_written_does_not_break_a_case(tmp_path, monkeypatch):
+    """In the container the bundled data directory is read-only; a new case must still get its weather."""
+    from datetime import datetime, timezone
+    import dipper_engine.weather as w
+    ro = tmp_path / "ro"
+    ro.mkdir()
+    ro.chmod(0o500)
+    hourly = {"hourly": {"time": ["2026-09-24T12:00"], "precipitation": [0.0], "temperature_2m": [21.0]}}
+    monkeypatch.setattr(w.httpx, "get", lambda *a, **k: type("R", (), {"raise_for_status": lambda s: None,
+                                                                         "json": lambda s: hourly})())
+    try:
+        ctx = w.fetch_context(40.2, -8.4, datetime(2026, 9, 24, 12, tzinfo=timezone.utc), cache_dir=[ro / "cache", ro])
+    finally:
+        ro.chmod(0o700)
+    assert ctx.rain_48h_mm == 0.0
