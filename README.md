@@ -6,12 +6,29 @@
 search that narrows down the polluting pipe with far fewer checks than walking the bank. It tells the public what is known, and hands the case to
 utilities and health systems in FHIR.
 
-**Live demo: https://dipper-8fe5.onrender.com**
+<p align="center"><a href="https://youtu.be/hws8kKtEp44"><img src="docs/video-thumbnail.jpg" width="720" alt="Watch the Dipper demo video on YouTube"></a><br><b><a href="https://youtu.be/hws8kKtEp44">▶ Watch the demo video (4½ min)</a></b></p>
 
-It runs on a free plan, so after 15 minutes without visitors the first page load takes about a minute while
-it wakes. Demo data resets when it sleeps. Photo analysis is switched off on the public demo.
+## Quick links
 
-**A 5-minute walkthrough:**
+| What | Where |
+|---|---|
+| **Demo video** | https://youtu.be/hws8kKtEp44 |
+| **Live app** | https://dipper-8fe5.onrender.com (free plan: after 15 idle minutes the first load takes about a minute, and demo data resets) |
+| Investigator replay | https://dipper-8fe5.onrender.com/#/ops → **Continue as investigator** → **Replay 18 Sep 2026** |
+| Citizen report (best on a phone) | https://dipper-8fe5.onrender.com/#/citizen |
+| Public advisory map | https://dipper-8fe5.onrender.com/#/public |
+| SourceBench results (simulation) | https://dipper-8fe5.onrender.com/#/bench |
+| API documentation (demo mode) | https://dipper-8fe5.onrender.com/api/docs |
+| Two-page project brief (PDF) | [docs/Dipper-project-brief.pdf](docs/Dipper-project-brief.pdf) |
+| Architecture and case lifecycle | [Architecture](#architecture) |
+| Run it on Windows, macOS or Linux | [Run it yourself](#run-it-yourself) |
+| Model card: every parameter and why | [docs/model-card.md](docs/model-card.md) |
+| What is real and what is simulated | [DATA.md](DATA.md) |
+| FHIR profiles, example bundles, validator | [fhir/](fhir/) and [FHIR](#fhir) |
+
+Photo analysis is switched off on the public demo, so it needs no API keys.
+
+**A 5-minute walkthrough of the live app:**
 1. **Report** (the citizen app): pick a point on the stream, tap "Grey or milky water", and send. You get a
    nearby check to help narrow the search. Switch to a stream in Oslo or Ghent to see Norwegian or Dutch.
 2. **Operations → Continue as investigator → Replay 18 Sep 2026**: press **Run top check** until the source
@@ -105,7 +122,7 @@ End to end: **report → case → next best check → source localized → hand-
 flowchart TB
   subgraph people["People"]
     direction LR
-    cit(["Citizen<br/>phone PWA · PT/EN · works offline"])
+    cit(["Citizen<br/>phone PWA · 4 languages · works offline"])
     vol(["Trained volunteer<br/>ammonium strips"])
     inv(["Investigator<br/>utility or municipality"])
     ph(["Public-health officer"])
@@ -239,29 +256,69 @@ sequenceDiagram
   A-->>C: Advisory shown on the public map and in the case
 ```
 
-## Quickstart
+## Run it yourself
+
+Dipper runs the same way on **Windows, macOS and Linux**. Both options start the full app with demo mode on,
+at http://localhost:8000. No API keys are needed. Photo analysis stays off until you add one.
+
+### Option 1: Docker (recommended)
+
+You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) on Windows 10 or 11 (with WSL 2)
+or macOS, or Docker Engine with the Compose plugin (v2.24 or newer) on Linux.
 
 ```bash
-docker compose up --build        # web app and API on http://localhost:8000 (demo mode on)
+git clone https://github.com/TusharTechs/dipper.git
+cd dipper
+docker compose up --build
 ```
 
-Open http://localhost:8000 and choose **Operations → Continue as investigator → Replay 18 Sep 2026**. Then
-press **Run top check** until the source is localized. Hand off, sign in as a public-health officer and
-approve the advisory. Last, open **Advisories**. The citizen flow is at **Report**.
+The first build takes a few minutes. Then open http://localhost:8000 and follow the
+[walkthrough](#quick-links). Stop with `Ctrl+C`. `docker compose down -v` also clears the demo data.
 
-Development without Docker:
+To hand cases to a local FHIR server as well, add `FHIR_BASE_URL=http://hapi:8080/fhir` to a `.env` file and
+start with `docker compose --profile fhir up --build`. It runs HAPI FHIR R4 next to the app.
+
+### Option 2: without Docker
+
+You need [Git](https://git-scm.com/downloads), [Node.js 22 LTS](https://nodejs.org/) or newer, and
+[uv](https://docs.astral.sh/uv/getting-started/installation/), which installs the right Python by itself:
+
+| System | Install uv |
+|---|---|
+| macOS, Linux | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| Windows (PowerShell) | `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 \| iex"` |
+
+Then, from a terminal (PowerShell on Windows):
 
 ```bash
-uv sync && uv run pytest                                           # 82 tests
-DIPPER_DEMO=1 uv run uvicorn dipper_api.main:app --reload          # API at :8000, docs at /docs (demo only)
-npm --prefix web install && npm --prefix web run dev               # UI at http://localhost:3000
-uv run python -m dipper_engine.sim --trials 40                     # SourceBench (simulation)
-uv run python scripts/export_fhir_examples.py && ./fhir/validate.sh  # FHIR bundles + HL7 validator
-npm --prefix web run a11y -- http://localhost:8000                 # axe audit (needs a demo site and Chrome)
+git clone https://github.com/TusharTechs/dipper.git
+cd dipper
+cp .env.example .env              # Windows PowerShell: Copy-Item .env.example .env
+uv sync                           # Python and the engine's dependencies
+npm --prefix web ci               # the web app's dependencies
+npm --prefix web run build        # builds the web app into web/dist
+uv run uvicorn dipper_api.main:site --port 8000
 ```
 
-`docker compose --profile fhir up` also starts a local HAPI FHIR server, reachable from the app at
-`FHIR_BASE_URL=http://hapi:8080/fhir`.
+Open http://localhost:8000. The `.env` file turns on demo mode. Add an `ANTHROPIC_API_KEY` or `GEMINI_API_KEY`
+there to try photo analysis.
+
+### For development
+
+```bash
+uv run uvicorn dipper_api.main:app --reload --port 8000   # API with auto-reload; docs at http://localhost:8000/docs
+npm --prefix web run dev                                   # web app with hot reload at http://localhost:3000
+uv run pytest                                              # 84 tests: engine, API, FHIR export, photos, OAH import
+uv run python -m dipper_engine.sim --trials 40 --seed 1 --misspec 1.3   # SourceBench (simulation)
+npm --prefix web run a11y -- http://localhost:8000         # axe accessibility audit (needs Chrome and a demo site)
+```
+
+FHIR validation (`uv run python scripts/export_fhir_examples.py`, then `bash fhir/validate.sh`) needs Java 17 or
+newer and a Bash shell. On Windows, use Git Bash or WSL. CI runs all of the above on every push.
+
+**Behind a company proxy that inspects TLS?** Pass your CA bundle as a build secret:
+`docker build --secret id=extra_ca,src=path/to/ca.pem .` It is used only while downloading and is never
+stored in the image.
 
 ## Production deployment
 
@@ -442,13 +499,14 @@ web/                 React + MapLibre PWA: citizen report, public advisories, op
 fhir/                Dipper FSH profiles on the OAH IG, example bundles, validator script
 data/                real OSM reaches, weather cache, SourceBench results, photo evaluation
 docs/model-card.md   every parameter and its rationale
+video/               how the demo video, thumbnails and project brief are made (macOS)
 ```
 
 ## Status and limits
 
 | Built and tested | Next, with a pilot partner |
 |---|---|
-| Engine, recommender, SourceBench, replay; 82 tests; CI | Real outfall inventories instead of synthetic candidates |
+| Engine, recommender, SourceBench, replay; 84 tests; CI | Real outfall inventories instead of synthetic candidates |
 | Staff roles and approvals, audit trail, public advisories | Expert review of likelihoods; lab calibration |
 | FHIR on the OAH IG, validated and pushed | Overflow-telemetry and sensor feeds as evidence |
 | Photo pipeline, evaluated on 35 Commons photos ([data/eval](data/eval/README.md)) | Number-plate redaction; expert-labelled photo set |
