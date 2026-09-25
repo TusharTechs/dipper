@@ -25,9 +25,10 @@ Built for the OneAquaHealth IEEE Global Hackathon 2026 (Track 3, AI-Supported As
 
    Each recommendation comes with both outcome branches in plain language.
 5. **Photos help, people decide.** A citizen photo is redacted on the server (EXIF including GPS removed,
-   faces blurred) and only then read by Claude for visual indicators. Those enter the ledger as a separate,
+   faces blurred) and only then read by a vision model for visual indicators: Claude (`claude-opus-5`) or
+   Google Gemini (`gemini-flash-latest`), chosen by `DIPPER_VISION_PROVIDER` or by whichever key is set. Those enter the ledger as a separate,
    weaker observer. A disagreement with the citizen's answer becomes a prompt to them and never overwrites
-   what they said. Without an `ANTHROPIC_API_KEY` the report is still recorded, and the photo is kept but not
+   what they said. Without a key the report is still recorded, and the photo is kept but not
    analysed.
 6. **People decide.** Advisories, utility handoffs and dismissals require a named approver. Every update is
    explained in an evidence ledger.

@@ -26,6 +26,7 @@ from .model import FEATURE_LABELS, FEATURES
 
 PHOTO_ROLE = "photo_model"
 DEFAULT_MODEL = os.getenv("DIPPER_VISION_MODEL", "claude-opus-5")
+GEMINI_MODEL = os.getenv("DIPPER_GEMINI_MODEL", "gemini-flash-latest")
 MAX_SIDE = 1568            # long-edge size that keeps detail without wasting image tokens
 PRESENT_AT = 0.6           # confidence needed to count a feature as present
 CONFLICT_AT = 0.75         # confidence needed to question a citizen's answer
@@ -129,6 +130,63 @@ class PhotoModelUnavailable(RuntimeError):
     """No credentials, a refusal, or an unusable response. The report still counts without the photo."""
 
 
+def vision_provider() -> str:
+    """'anthropic' or 'gemini'. DIPPER_VISION_PROVIDER wins; otherwise whichever key is configured, Claude first."""
+    explicit = os.getenv("DIPPER_VISION_PROVIDER", "").strip().lower()
+    if explicit in ("anthropic", "gemini"):
+        return explicit
+    if os.getenv("ANTHROPIC_API_KEY"):
+        return "anthropic"
+    if os.getenv("GEMINI_API_KEY") or os.getenv("LLM_API_KEY"):
+        return "gemini"
+    return "anthropic"
+
+
+def extract(jpeg: bytes) -> PhotoFeatures:
+    """Extract features with the configured provider. The image must already be redacted."""
+    return extract_features_gemini(jpeg) if vision_provider() == "gemini" else extract_features(jpeg)
+
+
+def _parse(text: str | None) -> PhotoFeatures:
+    if not text:
+        raise PhotoModelUnavailable("photo model returned no result")
+    try:
+        return PhotoFeatures.model_validate(json.loads(text))
+    except (json.JSONDecodeError, ValidationError) as exc:
+        raise PhotoModelUnavailable("photo model result did not match the schema") from exc
+
+
+def extract_features_gemini(jpeg: bytes, client: Any | None = None, model: str = GEMINI_MODEL) -> PhotoFeatures:
+    """Same contract as extract_features, using Google Gemini (google-genai SDK) with a JSON-schema response."""
+    from google import genai
+    from google.genai import errors, types
+
+    if client is None:
+        key = os.getenv("GEMINI_API_KEY") or os.getenv("LLM_API_KEY")
+        if not key:
+            raise PhotoModelUnavailable("no photo model credentials configured (set GEMINI_API_KEY or LLM_API_KEY)")
+        client = genai.Client(api_key=key)
+    try:
+        response = client.models.generate_content(
+            model=model,
+            contents=[types.Part.from_bytes(data=jpeg, mime_type="image/jpeg"),
+                      f"Rate these visual indicators:\n{INDICATORS}"],
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM, response_mime_type="application/json", response_json_schema=_schema(),
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)),  # no tools used
+        )
+    except errors.ClientError as exc:
+        raise PhotoModelUnavailable(f"photo model rejected the request ({exc.code})") from exc
+    except errors.ServerError as exc:
+        raise PhotoModelUnavailable(f"photo model error {exc.code}") from exc
+    except errors.APIError as exc:
+        raise PhotoModelUnavailable("photo model error") from exc
+    feedback = getattr(response, "prompt_feedback", None)
+    if feedback is not None and getattr(feedback, "block_reason", None):
+        raise PhotoModelUnavailable("the photo model declined this image")
+    return _parse(getattr(response, "text", None))
+
+
 def extract_features(jpeg: bytes, client: Any | None = None, model: str = DEFAULT_MODEL) -> PhotoFeatures:
     """Ask Claude for structured visual indicators. `client` is an anthropic.Anthropic (injectable for tests)."""
     import anthropic
@@ -166,13 +224,7 @@ def extract_features(jpeg: bytes, client: Any | None = None, model: str = DEFAUL
         raise PhotoModelUnavailable("no photo model credentials configured (set ANTHROPIC_API_KEY)") from exc
     if response.stop_reason == "refusal":
         raise PhotoModelUnavailable("the photo model declined this image")
-    text = next((b.text for b in response.content if b.type == "text"), None)
-    if text is None:
-        raise PhotoModelUnavailable("photo model returned no result")
-    try:
-        return PhotoFeatures.model_validate(json.loads(text))
-    except (json.JSONDecodeError, ValidationError) as exc:
-        raise PhotoModelUnavailable("photo model result did not match the schema") from exc
+    return _parse(next((b.text for b in response.content if b.type == "text"), None))
 
 
 # ---- fusion -------------------------------------------------------------------------------

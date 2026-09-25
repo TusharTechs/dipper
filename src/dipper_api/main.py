@@ -16,11 +16,12 @@ import hashlib
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 from dipper_engine import Case, Context, Observation, ReachGraph
 from dipper_engine.fhir import case_bundle
-from dipper_engine.photo import PhotoModelUnavailable, conflicts, extract_features, redact, to_observation
+from dipper_engine.photo import PhotoModelUnavailable, conflicts, extract, redact, to_observation, vision_provider
 from dipper_engine.model import CHECK_TYPES, FEATURES, ROLES
 from dipper_engine.scenario import TRUE_SOURCE, build_case, truth_result
 from dipper_engine.sim import load_networks, run_trial, summarise
@@ -30,6 +31,7 @@ from dipper_engine.weather import fetch_context
 from .store import Store
 
 ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(ROOT / ".env")  # server-side secrets such as LLM_API_KEY; never sent to the browser
 REACH_DIR = ROOT / "data" / "reaches"
 CACHE_DIR = ROOT / "data" / "cache"
 
@@ -253,12 +255,12 @@ async def post_signal_photo(
         photo_out |= {"status": "not_analysed", "reason": "face detection unavailable, so the photo was not sent"}
     else:
         try:
-            pf = extract_features(red.jpeg)
+            pf = extract(red.jpeg)
             pobs = to_observation(pf, node, observed_at=now + timedelta(seconds=1))
             if pobs:
                 case.add(pobs)
                 store.add_observation(case.id, pobs)
-            photo_out |= {"status": "analysed", "note": pf.note, "usable": pf.image_usable and pf.shows_stream_or_outfall,
+            photo_out |= {"status": "analysed", "provider": vision_provider(), "note": pf.note, "usable": pf.image_usable and pf.shows_stream_or_outfall,
                           "features": {f: c.model_dump() for f, c in pf.calls().items()},
                           "conflicts": [c.__dict__ for c in conflicts(answers, pf)]}
         except PhotoModelUnavailable as exc:

@@ -109,7 +109,7 @@ def _post(client, main, answers):
 def test_photo_endpoint_records_both_observers(api, monkeypatch):
     main, client = api
     pf = PhotoFeatures.model_validate_json(features_json(grey={"present": True, "confidence": 0.9}))
-    monkeypatch.setattr(main, "extract_features", lambda jpeg: pf)
+    monkeypatch.setattr(main, "extract", lambda jpeg: pf)
     r = _post(client, main, {"grey": False, "sewage_odour": True}).json()
     assert r["photo"]["status"] == "analysed" and r["photo"]["conflicts"][0]["feature"] == "grey"
     roles = [o.role for o in main._cases[r["case_id"]].belief.observations]
@@ -123,7 +123,7 @@ def test_photo_endpoint_keeps_the_report_when_model_unavailable(api, monkeypatch
 
     def boom(jpeg):
         raise PhotoModelUnavailable("no credentials")
-    monkeypatch.setattr(main, "extract_features", boom)
+    monkeypatch.setattr(main, "extract", boom)
     r = _post(client, main, {"grey": True}).json()
     assert r["photo"]["status"] == "not_analysed" and "no credentials" in r["photo"]["reason"]
     assert [o.role for o in main._cases[r["case_id"]].belief.observations] == ["citizen"]
@@ -145,3 +145,36 @@ def test_request_time_auth_error_becomes_unavailable():
             self.beta = SimpleNamespace(messages=SimpleNamespace(create=create))
     with pytest.raises(PhotoModelUnavailable, match="credentials"):
         extract_features(b"x", client=NoAuth())
+
+
+class FakeGemini:
+    def __init__(self, text, block=None):
+        self.calls = []
+        resp = SimpleNamespace(text=text, prompt_feedback=SimpleNamespace(block_reason=block) if block else None)
+        self.models = SimpleNamespace(generate_content=lambda **kw: (self.calls.append(kw), resp)[1])
+
+
+def test_gemini_backend_uses_json_schema_and_the_redacted_image():
+    from dipper_engine.photo import extract_features_gemini
+    fake = FakeGemini(features_json(foam={"present": True, "confidence": 0.8}))
+    jpeg = redact(jpeg_with_exif((200, 150))).jpeg
+    pf = extract_features_gemini(jpeg, client=fake)
+    assert pf.foam.present
+    kw = fake.calls[0]
+    assert kw["config"].response_json_schema["additionalProperties"] is False
+    assert kw["contents"][0].inline_data.data == jpeg
+    with pytest.raises(PhotoModelUnavailable, match="declined"):
+        extract_features_gemini(jpeg, client=FakeGemini(None, block="SAFETY"))
+
+
+def test_provider_selection(monkeypatch):
+    from dipper_engine.photo import vision_provider
+    for v in ("DIPPER_VISION_PROVIDER", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "LLM_API_KEY"):
+        monkeypatch.delenv(v, raising=False)
+    assert vision_provider() == "anthropic"
+    monkeypatch.setenv("LLM_API_KEY", "x")
+    assert vision_provider() == "gemini"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "y")
+    assert vision_provider() == "anthropic"
+    monkeypatch.setenv("DIPPER_VISION_PROVIDER", "gemini")
+    assert vision_provider() == "gemini"
