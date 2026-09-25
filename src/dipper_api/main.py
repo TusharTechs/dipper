@@ -5,9 +5,9 @@
 
 from __future__ import annotations
 
-import itertools
 import json
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
@@ -24,11 +24,22 @@ from dipper_engine.sim import load_networks, run_trial, summarise
 from dipper_engine.voi import recommend
 from dipper_engine.weather import fetch_context
 
+from .store import Store
+
 ROOT = Path(__file__).resolve().parents[2]
 REACH_DIR = ROOT / "data" / "reaches"
 CACHE_DIR = ROOT / "data" / "cache"
 
-app = FastAPI(title="Dipper API", version="0.1.0",
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    cases, reach_of, truth = store.load_all(reach)
+    _cases.update(cases)
+    _reach_of.update(reach_of)
+    _scenario_truth.update(truth)
+    yield
+
+
+app = FastAPI(lifespan=lifespan, title="Dipper API", version="0.1.0",
               description="Bayesian source hunting for sewage pollution in urban streams. Prototype; in-memory store.")
 app.add_middleware(CORSMiddleware, allow_origins=os.getenv("DIPPER_CORS", "http://localhost:3000").split(","),
                    allow_methods=["*"], allow_headers=["*"])
@@ -36,7 +47,8 @@ app.add_middleware(CORSMiddleware, allow_origins=os.getenv("DIPPER_CORS", "http:
 _reaches: dict[str, ReachGraph] = {}
 _cases: dict[str, Case] = {}
 _scenario_truth: dict[str, str] = {}
-_ids = itertools.count(1)
+_reach_of: dict[str, str] = {}
+store = Store(Path(os.getenv("DIPPER_DB", str(ROOT / "data" / "dipper.sqlite3"))))
 
 
 def reach(reach_id: str) -> ReachGraph:
@@ -132,10 +144,10 @@ def _new_case(reach_id: str, opened_at: datetime | None, weather: WeatherIn | No
     else:
         mid = next(iter(g.nodes.values()))
         ctx = fetch_context(mid.lat, mid.lon, when, cache_dir=CACHE_DIR)
-    cid = f"C-{next(_ids):03d}"
+    cid = f"C-{store.next_number():03d}"
     case = Case(cid, g, ctx, opened_at=when)
-    case.reach_id = reach_id  # type: ignore[attr-defined]
-    _cases[cid] = case
+    _cases[cid], _reach_of[cid] = case, reach_id
+    store.create(case, reach_id)
     return case
 
 
@@ -165,6 +177,13 @@ def case_view(case_id: str, k: int = 5) -> dict:
     return get_case(case_id).view(n_recommendations=k)
 
 
+@app.get("/v1/cases/{case_id}/history")
+def case_history(case_id: str) -> list[dict]:
+    """Append-only event history (observations and human actions), the audit trail."""
+    get_case(case_id)
+    return store.history(case_id)
+
+
 @app.get("/v1/cases/{case_id}/fhir")
 def case_fhir(case_id: str) -> dict:
     """FHIR R4 Bundle (collection) using OAH LocationOah/GroupOah plus Dipper response profiles."""
@@ -181,11 +200,12 @@ def post_signal(body: SignalIn) -> dict:
     if dist > 150:
         raise HTTPException(422, f"location is {dist:.0f} m from the mapped stream")
     case = get_case(body.case_id) if body.case_id else next(
-        (c for c in _cases.values() if getattr(c, "reach_id", None) == body.reach_id and c.status in ("open", "localizing", "localized")),
+        (c for c in _cases.values() if _reach_of.get(c.id) == body.reach_id and c.status in ("open", "localizing", "localized")),
         None) or _new_case(body.reach_id, body.observed_at, None)
     obs = Observation("report", True, node_id=node, role=body.role, features=tuple(body.features.items()),
                       observed_at=body.observed_at or datetime.now(timezone.utc), observer=body.observer)
     case.add(obs)
+    store.add_observation(case.id, obs)
     return {"case_id": case.id, "snapped_node": node, "snap_distance_m": round(dist, 1),
             "ledger_entry": case.belief.ledger[-1].as_dict(), "status": case.status}
 
@@ -205,6 +225,7 @@ def post_check(case_id: str, body: CheckIn) -> dict:
         obs = Observation(body.check_type, body.positive, node_id=body.node_id, candidate_id=body.candidate_id,
                           role=body.role, observed_at=body.observed_at or datetime.now(timezone.utc), observer=body.observer)
         c.add(obs)
+        store.add_observation(case_id, obs)
     except (ValueError, KeyError) as exc:
         raise HTTPException(422, str(exc)) from exc
     return c.view()
@@ -214,7 +235,8 @@ def post_check(case_id: str, body: CheckIn) -> dict:
 def post_action(case_id: str, body: ActionIn) -> dict:
     c = get_case(case_id)
     try:
-        c.act(body.type, body.approver, body.payload)
+        a = c.act(body.type, body.approver, body.payload)
+        store.add_action(case_id, a.type, a.approver, a.payload, a.at)
     except PermissionError as exc:
         raise HTTPException(403, str(exc)) from exc
     return c.view()
@@ -225,9 +247,13 @@ def post_action(case_id: str, body: ActionIn) -> dict:
 @app.post("/v1/scenarios/c014")
 def scenario_start(wet: bool = False) -> dict:
     case, _ = build_case(wet=wet)
-    case.reach_id = "coimbra-ribeira-de-coselhas"  # type: ignore[attr-defined]
-    _cases[case.id] = case
+    base, n = case.id, 1
+    while case.id in _cases:
+        n += 1
+        case.id = f"{base}-{n}"
+    _cases[case.id], _reach_of[case.id] = case, "coimbra-ribeira-de-coselhas"
     _scenario_truth[case.id] = TRUE_SOURCE
+    store.create(case, "coimbra-ribeira-de-coselhas", scenario_truth=TRUE_SOURCE)
     return case.view() | {"scenario": {"label": "Scenario replay: real stream and weather, simulated reports and results"}}
 
 
@@ -240,8 +266,10 @@ def scenario_step(case_id: str) -> dict:
     rec = recommend(c.belief, c.stakes, k=1)[0]
     positive = truth_result(c.graph, rec.check, _scenario_truth[case_id])
     last = c.belief.clock or c.opened_at
-    c.add(Observation(rec.check.check_type, positive, node_id=rec.check.node_id, candidate_id=rec.check.candidate_id,
-                      role=rec.check.role, observed_at=last + timedelta(minutes=25), tier="simulated"))
+    obs = Observation(rec.check.check_type, positive, node_id=rec.check.node_id, candidate_id=rec.check.candidate_id,
+                      role=rec.check.role, observed_at=last + timedelta(minutes=25), tier="simulated")
+    c.add(obs)
+    store.add_observation(case_id, obs)
     return {"performed": rec.as_dict(), "result": "positive" if positive else "clean", "case": c.view()}
 
 

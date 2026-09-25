@@ -27,3 +27,4 @@ packages = ["src/dipper_engine", "src/dipper_api"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]

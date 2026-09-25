@@ -40,11 +40,12 @@ class Case:
         if self._status == "open" and len(self.belief.observations) > 1:
             self._status = "localizing"
 
-    def act(self, type_: str, approver: str | None, payload: dict[str, Any] | None = None) -> Action:
+    def act(self, type_: str, approver: str | None, payload: dict[str, Any] | None = None,
+            at: datetime | None = None) -> Action:
         """Human decisions. Advisories and utility handoffs require an approver."""
         if type_ in ("advisory", "notify_utility", "dismiss") and not approver:
             raise PermissionError(f"{type_} requires a human approver")
-        a = Action(type=type_, at=datetime.now(timezone.utc), approver=approver, payload=payload or {})
+        a = Action(type=type_, at=at or datetime.now(timezone.utc), approver=approver, payload=payload or {})
         self.actions.append(a)
         self._status = {"notify_utility": "handed_off", "fixed": "fixed", "verified": "verified",
                         "close": "closed", "dismiss": "dismissed"}.get(type_, self._status)

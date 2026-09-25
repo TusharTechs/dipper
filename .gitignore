@@ -14,3 +14,4 @@ data/sourcebench_stdout.txt
 fhir/.build/
 fhir/ig/fsh-generated/
 web/dist/
+data/dipper.sqlite3*
