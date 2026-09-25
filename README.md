@@ -36,6 +36,8 @@ uv run python -m dipper_engine.scenario         # C-014 replay on Ribeira de Cos
 uv run python -m dipper_engine.scenario --wet   # same reports on 24 Aug 2026 after 24 mm of rain
 uv run python -m dipper_engine.sim --trials 40  # SourceBench (simulation)
 uv run uvicorn dipper_api.main:app --reload     # API docs at http://localhost:8000/docs
+npm --prefix web install && npm --prefix web run dev   # UI at http://localhost:3000
+uv run python scripts/export_fhir_examples.py && ./fhir/validate.sh   # FHIR bundles + HL7 validator
 ```
 
 Demo through the API:
@@ -90,16 +92,18 @@ src/dipper_api/main.py   FastAPI (in-memory store)
 scripts/fetch_reaches.py fetch OAH pilot streams into data/reaches
 data/reaches/            cached reach GeoJSON (Coimbra, Oslo, Ghent)
 docs/model-card.md       every parameter and its rationale
-web/  fhir/              next: Next.js UI and FHIR response profiles (see their READMEs)
+web/                     Vite + React + MapLibre UI (see web/README.md)
+fhir/ig/                 Dipper FSH profiles on the OAH IG; fhir/examples/ bundles; fhir/validate.sh
 ```
 
 ## Status
 
 | Built | Next |
 |---|---|
-| Engine, value-of-information recommender, SourceBench, scenario replay, API, tests | Web UI (MapLibre case workspace, citizen mission PWA) |
-| Real OSM reaches for 6 OAH streams; real weather context | FHIR response profiles (FSH) and Bundle export validated against the OAH IG |
-| Human approval gates, evidence ledger, unknowns | Photo feature extraction (multimodal LLM, redaction first); PostGIS persistence |
+| Engine, value-of-information recommender, SourceBench, scenario replay, API, 22 tests | Photo feature extraction (multimodal LLM, redaction first) |
+| Web UI: case workspace with probability ribbon, queue, citizen report and mission flow (PT and EN) | PostGIS persistence (the API store is in memory) |
+| FHIR: 8 Dipper response profiles on the OAH IG; bundle export; **0 errors** in the HL7 validator | Offline PWA, notifications, ENORA API import |
+| Real OSM reaches for 6 OAH streams; real weather context; human approval gates; evidence ledger | Expert review of likelihoods; lab calibration |
 
 ## Licence and attribution
 
