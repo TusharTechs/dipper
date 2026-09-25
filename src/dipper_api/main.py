@@ -416,6 +416,26 @@ def ready() -> dict:
             "fhir_server": bool(os.getenv("FHIR_BASE_URL"))}
 
 
+@app.get("/v1/debug/client")
+def debug_client(request: Request) -> dict:
+    """Demo only: how this deployment's proxy forwards the client address, to configure rate limiting. Values are
+    returned only as short hashes, never as IP addresses."""
+    if not demo_enabled():
+        raise HTTPException(404, "not found")
+    h = lambda v: hashlib.sha256(v.encode()).hexdigest()[:8]
+    xff = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+    def private(v: str) -> bool | None:
+        try:
+            return ipaddress.ip_address(v).is_private
+        except ValueError:
+            return None
+    names = ("x-real-ip", "true-client-ip", "cf-connecting-ip", "x-client-ip", "forwarded", "x-forwarded-proto")
+    return {"peer_trusted": _from_proxy(request), "peer_private": private(request.client.host) if request.client else None,
+            "xff": [{"hash": h(v), "private": private(v)} for v in xff],
+            "headers": {n: h(request.headers[n]) for n in names if n in request.headers},
+            "rate_limit_key": _client_key(request)}
+
+
 @app.post("/v1/auth/demo")
 def auth_demo(body: DemoIn) -> dict:
     """Short-lived demo sign-in for evaluators. Disabled unless DIPPER_DEMO=1."""
