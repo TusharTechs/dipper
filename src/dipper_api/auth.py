@@ -79,6 +79,17 @@ class Users:
             return None
         return User(row[0], row[1], row[2], bool(row[4]))
 
+    def list(self) -> list[dict]:
+        with self.lock:
+            rows = self.db.execute("select id, name, role, created_at, expires_at, demo from users order by created_at").fetchall()
+        return [{"id": r[0], "name": r[1], "role": r[2], "created_at": r[3], "expires_at": r[4], "demo": bool(r[5])}
+                for r in rows]
+
+    def revoke(self, user_id: str) -> bool:
+        """Invalidate a person's token at once (lost phone, left the job)."""
+        with self.lock, self.db:
+            return self.db.execute("delete from users where id = ?", (user_id,)).rowcount > 0
+
     def purge_expired(self) -> int:
         with self.lock, self.db:
             return self.db.execute("delete from users where expires_at is not null and expires_at < ?",

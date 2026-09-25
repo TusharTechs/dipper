@@ -175,3 +175,43 @@ def test_day_and_night_activity_follow_the_local_time_of_each_observation(graph)
                          observed_at=datetime(2026, 9, 19, 1, 30, tzinfo=timezone.utc)))  # 02:30 Lisbon, next night
     assert not b._act_ctx.daytime
     assert b._activity("foul") == pytest.approx(ModelParams().activity_night["foul"])
+
+
+def test_late_arriving_evidence_is_scored_at_its_own_time(graph):
+    """An offline night-time report that arrives after daytime evidence is still scored as night."""
+    graph.meta["tz"] = "UTC"
+    node = lowest_access(graph)
+    b = seeded_belief(graph)                                                    # report at 09:00
+    b.update(Observation("instream_look", False, node_id=node, observed_at=T0 + timedelta(hours=6)))   # 15:00
+    night = T0 - timedelta(hours=7)                                             # 02:00, arriving late
+    b.at(night)
+    assert not b._act_ctx.daytime and not b._persisting    # the 09:00 sighting is in its future
+    b.at(b.clock)
+    assert b._act_ctx.daytime and b.clock == T0 + timedelta(hours=6)
+
+
+def test_recommendations_are_for_now_and_a_replay_keeps_its_own_clock(graph):
+    c = Case("C-T", graph, DRY, opened_at=T0)
+    c.add(Observation("report", True, node_id=lowest_access(graph), features=(("grey", True),), observed_at=T0))
+    c._frozen_now = lambda: T0 + timedelta(minutes=30)            # checked inside the burst
+    inside = {r.check.key(): r.score for r in c.ranked(40)}
+    c._frozen_now = lambda: T0 + timedelta(hours=26)              # the next morning: the burst is over
+    outside = {r.check.key(): r.score for r in c.ranked(40)}
+    shared = inside.keys() & outside.keys()
+    assert shared and any(abs(inside[k] - outside[k]) > 1e-6 for k in shared)
+    assert c.belief._persisting                                    # ranking leaves the belief at its own clock
+    c.freeze_clock()
+    assert c.now() == T0
+
+
+def test_vectorised_source_marginals_match_a_direct_sum(graph):
+    b = seeded_belief(graph)
+    b.update(Observation("outfall_look", True, candidate_id=graph.candidates[3].id, role="trained",
+                         observed_at=T0 + timedelta(minutes=20)))
+    direct: dict[str, float] = {}
+    for pi, s in zip(b.p, b.s_of):
+        direct[s] = direct.get(s, 0.0) + float(pi)
+    ms = b.marginal_s()
+    assert all(ms[k] == pytest.approx(v, abs=1e-12) for k, v in direct.items())
+    cands = {k: v for k, v in direct.items() if k not in (OUTSIDE, "none")}
+    assert b.top_source()[0] == max(cands, key=cands.get)

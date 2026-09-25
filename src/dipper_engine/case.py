@@ -207,13 +207,27 @@ class Case:
                distinct: bool = False) -> list:
         """Recommendations, cached until new evidence arrives: ranking every check is the costliest step,
         and page views far outnumber updates."""
-        key = (len(self.belief.observations), k, tuple(roles), distinct, round(self.stakes, 9))
-        cache = self.__dict__.setdefault("_ranked", {})
-        if key not in cache:
-            if any(kk[0] != key[0] for kk in cache):
-                cache.clear()
-            cache[key] = recommend(self.belief, self.stakes, k=k, roles=tuple(roles), distinct=distinct)
-        return cache[key]
+        b = self.belief
+        now = self.now()
+        b.at(max(now, b.clock) if b.clock else now)  # a check happens now: outside a burst that has ended, day or night
+        try:
+            key = (len(b.observations), b._persisting, b._act_ctx.daytime, k, tuple(roles), distinct, round(self.stakes, 9))
+            cache = self.__dict__.setdefault("_ranked", {})
+            if key not in cache:
+                if any(kk[0] != key[0] for kk in cache):
+                    cache.clear()
+                cache[key] = recommend(b, self.stakes, k=k, roles=tuple(roles), distinct=distinct)
+            return cache[key]
+        finally:
+            b.at(b.clock)
+
+    def now(self) -> datetime:
+        """When a recommended check would happen. Live cases: the wall clock. A replay freezes it at the replay's
+        own latest evidence (see freeze_clock), so the demo gives the same advice whenever it is run."""
+        return self._frozen_now() if getattr(self, "_frozen_now", None) else datetime.now(timezone.utc)
+
+    def freeze_clock(self) -> None:
+        self._frozen_now = lambda: self.belief.clock or self.opened_at
 
     # ---- view -------------------------------------------------------------------
     def _obs_view(self, o: Observation) -> dict[str, Any]:

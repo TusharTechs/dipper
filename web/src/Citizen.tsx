@@ -10,6 +10,22 @@ const readQueue = (): Queued[] => { try { return JSON.parse(localStorage.getItem
 const writeQueue = (q: Queued[]) => { try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)) } catch { /* storage unavailable */ } }
 let flushing = false  // one flush at a time: the page load and the 'online' event can both start one
 
+// The report token lets this phone follow its own reports after a reload. Kept on the device only.
+const RECENT_KEY = 'dipper.reports'
+type Recent = { case_id: string; token: string; reach: string; at: string }
+const readRecent = (): Recent[] => {
+  try {
+    const cutoff = Date.now() - 14 * 86400_000
+    return (JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') as Recent[]).filter((r) => Date.parse(r.at) > cutoff)
+  } catch { return [] }
+}
+const remember = (r: Recent) => {
+  try {
+    const list = [r, ...readRecent().filter((x) => x.case_id !== r.case_id)].slice(0, 10)
+    localStorage.setItem(RECENT_KEY, JSON.stringify(list))
+  } catch { /* storage unavailable */ }
+}
+
 /** A keyboard and screen-reader alternative to tapping the map: named places, then points every ~250 m along the stream. */
 type Landmark = { key: string; lat: number; lon: number; place?: string; km?: number; nearPlace?: string }
 function landmarks(reach: GeoJSON | null): Landmark[] {
@@ -51,6 +67,8 @@ export default function Citizen() {
   const [summary, setSummary] = useState<CitizenCase | null>(null)
   const [photoRes, setPhotoRes] = useState<PhotoResult['photo'] | null>(null)
   const [dismissed, setDismissed] = useState<string[]>([])
+  const [recent, setRecent] = useState<Recent[]>(readRecent)
+  const [cleanNoCase, setCleanNoCase] = useState(false)
   const [outcome, setOutcome] = useState<number | null>(null)
   const [skipMission, setSkipMission] = useState(false)
   const [queued, setQueued] = useState(readQueue().length)
@@ -66,9 +84,12 @@ export default function Citizen() {
       try {
         const q = readQueue(); const left: Queued[] = []
         for (const item of q) {
-          try { await api.signal(item) } catch (e) { if (!(e instanceof ApiError) || e.status >= 500) left.push(item) }
+          try {
+            const r = await api.signal(item)
+            if (r.case_id && r.report_token) remember({ case_id: r.case_id, token: r.report_token, reach: item.reach_id, at: item.observed_at })
+          } catch (e) { if (!(e instanceof ApiError) || e.status >= 500) left.push(item) }
         }
-        writeQueue(left); setQueued(left.length)
+        writeQueue(left); setQueued(left.length); setRecent(readRecent())
       } finally { flushing = false }
     }
     window.addEventListener('online', flush); if (navigator.onLine) flush()
@@ -91,6 +112,8 @@ export default function Citizen() {
     try {
       const r = file ? await api.signalPhoto(file, body) : await api.signal(queuedBody)
       if ('photo' in r) setPhotoRes(r.photo)
+      if (!r.case_id || !r.report_token) { setCleanNoCase(true); announce(t.cleanThanks); return }
+      remember({ case_id: r.case_id, token: r.report_token, reach: reachId, at: queuedBody.observed_at }); setRecent(readRecent())
       setToken(r.report_token); setCaseId(r.case_id); await refresh(r.case_id, r.report_token); announce(`${t.thanks} ${r.case_id}`)
       window.setTimeout(() => document.getElementById('thanks')?.focus(), 0)
     } catch (e: any) {
@@ -121,7 +144,11 @@ export default function Citizen() {
     return near ? `${spot} (${t.near} ${near.l.place})` : spot
   })()
 
-  const reset = () => { setCaseId(null); setSummary(null); setFeats({}); setCleanReport(false); setPicked(null); setPickedKey(''); setOutcome(null); setFile(null); setPhotoRes(null); setDismissed([]); setSkipMission(false); setToken(null) }
+  const reset = () => { setCaseId(null); setSummary(null); setFeats({}); setCleanReport(false); setPicked(null); setPickedKey(''); setOutcome(null); setFile(null); setPhotoRes(null); setDismissed([]); setSkipMission(false); setToken(null); setCleanNoCase(false) }
+  const reopen = async (r: Recent) => {
+    setError(null); setReachId(r.reach); setToken(r.token); setCaseId(r.case_id)
+    try { await refresh(r.case_id, r.token) } catch (e: any) { setError(e.message); setCaseId(null) }
+  }
 
   return (
     <div className="citizen" lang={lang}>
@@ -134,8 +161,18 @@ export default function Citizen() {
         </div>
         {queued > 0 && <p className="note" role="status">{queued} {t.queued}</p>}
 
-        {!caseId && <>
+        {cleanNoCase && <>
+          <h1 className="thanks" id="thanks" tabIndex={-1}>{t.cleanThanks}</h1>
+          <button className="wide" onClick={reset}>{t.another}</button>
+        </>}
+
+        {!caseId && !cleanNoCase && <>
           <h1>{t.title}</h1>
+          {recent.length > 0 && <nav className="recent" aria-label={t.recent}>
+            <h2>{t.recent}</h2>
+            <ul>{recent.map((r) => <li key={r.case_id}><button className="linkish" onClick={() => reopen(r)}>
+              {r.case_id} · {reaches.find((x) => x.id === r.reach)?.name ?? r.reach} · {new Date(r.at).toLocaleDateString(lang === 'nb' ? 'nb-NO' : lang)}</button></li>)}</ul>
+          </nav>}
           <p className="muted">{t.intro}</p>
           {reaches.length > 1 && <>
             <label htmlFor="reach">{t.stream}</label>

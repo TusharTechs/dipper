@@ -68,11 +68,22 @@ Description: "A recommended next check at a stream point or outfall, with its va
 * subject only Reference($LocationOah)
 * supportingInfo 1..*
 
+Profile: DipperConfirmationRequest
+Parent: ServiceRequest
+Id: dipper-confirmation-request
+Title: "Dipper confirmation request"
+Description: "Before any repair, the utility confirms the localized entry point with a dye test, smoke test or CCTV. The localization is a probability, never proof."
+* code 1..1
+* code = DipperCodes#confirm-entry
+* subject only Reference($LocationOah)
+* reasonCode 1..*
+* supportingInfo 1..*
+
 Profile: DipperFieldTask
 Parent: Task
 Id: dipper-field-task
 Title: "Dipper field task"
-Description: "The mission that carries out a check request."
+Description: "The mission that carries out a check or confirmation request."
 * basedOn 1..1
 * basedOn only Reference(ServiceRequest)
 * for 1..1

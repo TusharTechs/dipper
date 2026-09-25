@@ -115,7 +115,7 @@ flowchart TB
       voi["Next best check<br/>EVSI + search value − cost − delay<br/>walking cost for citizens"]
       expo["Exposure<br/>contact places downstream · travel time"]
       lifecycle["Case lifecycle<br/>approval gates · advisory draft · audit trail"]
-      fhirb["FHIR builder<br/>OAH IG + 8 Dipper profiles"]
+      fhirb["FHIR builder<br/>OAH IG + 9 Dipper profiles"]
     end
 
     store[("Event store · SQLite WAL<br/>append-only · replayed on start")]
@@ -234,8 +234,8 @@ approve the advisory. Last, open **Advisories**. The citizen flow is at **Report
 Development without Docker:
 
 ```bash
-uv sync && uv run pytest                                           # 68 tests
-DIPPER_DEMO=1 uv run uvicorn dipper_api.main:app --reload          # API at :8000, docs at /docs
+uv sync && uv run pytest                                           # 79 tests
+DIPPER_DEMO=1 uv run uvicorn dipper_api.main:app --reload          # API at :8000, docs at /docs (demo only)
 npm --prefix web install && npm --prefix web run dev               # UI at http://localhost:3000
 uv run python -m dipper_engine.sim --trials 40                     # SourceBench (simulation)
 uv run python scripts/export_fhir_examples.py && ./fhir/validate.sh  # FHIR bundles + HL7 validator
@@ -261,10 +261,13 @@ user, has a health check on `/api/ready`, and keeps all state in the `/app/state
 | `FHIR_BASE_URL`, `FHIR_TOKEN` | FHIR server for case hand-off |
 | `PORT` | Listening port (default 8000) |
 
-Staff accounts are created by an administrator. The token is shown once and stored only as a hash:
+Staff accounts are created by an administrator. The token is shown once, stored only as a hash, and expires
+after 90 days unless set otherwise. A lost or leaked token is revoked at once:
 
 ```bash
 docker compose exec app python -m dipper_api.admin create-user --name "A. Inspector" --role inspector
+docker compose exec app python -m dipper_api.admin list-users
+docker compose exec app python -m dipper_api.admin revoke-user --id u_0123456789ab
 ```
 
 The roles are `trained` (volunteer checks), `inspector` (investigation and hand-off), `public_health`
@@ -276,6 +279,8 @@ The roles are `trained` (volunteer checks), `inspector` (investigation and hand-
 - **Only the reporter can follow a report.** Each report returns a private token, sent in a header and never
   in a URL. Only that token opens the case summary and answers its missions, once per mission. Case ids alone
   are guessable; the token is not.
+- **A clean report is evidence, not a case.** "The water looks clean" becomes a clean look for an open case
+  and never opens a pollution case by itself.
 - **Minimal location sharing.** A mission is chosen from where the stored report was snapped to the stream,
   so the phone never sends its location again. Citizens never see the outfall ranking or outfall labels.
 - **Photos:**
@@ -285,6 +290,8 @@ The roles are `trained` (volunteer checks), `inspector` (investigation and hand-
 - **Staff decisions:** every decision records the person's role and id. FHIR exports carry role and id,
   never names.
 - **Hardening:**
+  - API docs and schema are served only in demo mode (or with `DIPPER_DOCS=1`).
+  - HSTS only over HTTPS; the public weather endpoint is snapped to mapped streams and the last 60 days.
   - Rate limits on public endpoints, including mission answers. They hold behind a reverse proxy: forwarded
     addresses are trusted only from declared proxies (tested through the production `/api` mount).
   - Content Security Policy and security headers.
@@ -305,22 +312,28 @@ own container with its own reaches, staff and event store. There is no shared st
 
 | What | Measured on a laptop (Apple silicon, one core) |
 |---|---|
-| Case view, first after new evidence (ranks every possible check) | 25 ms on Ribeira de Coselhas (156 stream points); 141 ms on Zwalmbeek, Ghent (1,524 points) |
-| Case view afterwards (ranking cached until new evidence arrives) | 1.6 ms and 9.5 ms |
-| Citizen mission pool | 8 ms and 28 ms |
+| Case view, first after new evidence (ranks every possible check) | 11 ms on Ribeira de Coselhas (156 stream points, 14 outfalls); 65 ms on Zwalmbeek, Ghent (1,524 points) |
+| Case view afterwards (ranking cached until new evidence arrives) | 1.1 ms and 7.3 ms |
+| A dense urban catchment: synthetic stream with 1,500 points and 300 outfalls | 0.6 s first view, 14 ms cached |
 
-Page views far outnumber new evidence, so the cache carries almost all traffic. One process serves a city's
-full load: dozens of open cases and hundreds of citizen reports a day are well within these numbers.
+Page views far outnumber new evidence, so the cache carries almost all traffic. Ranking scores every check
+with numbers only and writes explanations just for the checks shown, which made it about 3× faster with
+byte-identical results.
+
+**Cases run in parallel.** Each case has its own lock for its belief and ranking. A short global lock guards
+only the case registry and database writes, and slow work (weather downloads, photo models) holds neither.
+A test drives concurrent reports, missions and staff checks across streams, then replays the database and
+gets the same posteriors.
 
 **What breaks first, and the path past it:**
-1. **Evidence write rate.** The API holds one process-wide lock while it applies evidence and ranks checks.
-   That caps it at roughly 7 to 40 new pieces of evidence per second, depending on stream size. A city
-   produces a few per hour. The next step is one lock per case, since cases are independent.
-2. **One writer, one process.** SQLite in WAL mode has one writer, and in-memory cases tie a city to one
-   process. For a national operator, the event store moves to Postgres (the schema is already append-only
-   events), with cases sharded by reach across workers.
-3. **Startup replay.** Every case is rebuilt from its events when the process starts, which takes seconds
-   for thousands of cases. Closed cases can be archived out of the hot set.
+1. **One process per city.** SQLite in WAL mode has one writer, and cases, rate-limit counters and report
+   ids live in the process. A city's load fits easily. For a national operator, the event store moves to
+   Postgres (the schema is already append-only events) and cases are sharded by stream across workers,
+   with shared rate limits.
+2. **Very large outfall inventories.** Ranking grows with outfalls × stream points; beyond a few hundred
+   outfalls per stream, prune candidates with negligible probability before ranking.
+3. **Startup replay.** Every case is rebuilt from its events at start, which takes seconds for thousands of
+   cases. Closed cases can be archived out of the hot set.
 
 ## Accessibility and usability
 
@@ -345,7 +358,7 @@ full load: dozens of open cases and hundreds of citizen reports a day are well w
   - Advisories are drafted in English and the city's language. The public sees exactly the wording the
     officer approved.
   - Simulated data is always labelled.
-- **Performance:** fonts are self-hosted and the map loads after the page, so the first view is about 85 kB
+- **Performance:** fonts are self-hosted and the map loads after the page, so the first view is about 90 kB
   of script (gzip).
 
 ## SourceBench results (SIMULATION)
@@ -377,8 +390,14 @@ These are simulated results under stated assumptions, not field performance. Rep
 
 ## FHIR
 
-- **Profiles:** eight Dipper response profiles (DetectedIssue, RiskAssessment, Flag, Provenance, Observation,
-  Device and others) sit on the OneAquaHealth IG (`LocationOah`, `GroupOah`).
+- **Profiles:** nine Dipper profiles sit on the OneAquaHealth IG (`LocationOah`, `GroupOah`):
+  - citizen observation (Observation) and source case (DetectedIssue);
+  - exposure risk (RiskAssessment) and site flag (Flag);
+  - check request and confirmation request (ServiceRequest), and field task (Task);
+  - advisory (Communication) and engine provenance (Provenance).
+- **Confirm before repair:** a localized or handed-off case carries a confirmation request and task for the
+  utility (dye test, smoke test or CCTV at the outfall). Localization is a probability: in SourceBench about 1
+  in 7 localizations points at the wrong outfall.
 - **Validation:** the example bundles validate with **0 errors** in the official HL7 validator (`fhir/validate.sh`,
   also run in CI).
 - **The one warning:** the OAH cohort value set has only Age and Sex, while Dipper's cohort is defined by
@@ -403,7 +422,7 @@ docs/model-card.md   every parameter and its rationale
 
 | Built and tested | Next, with a pilot partner |
 |---|---|
-| Engine, recommender, SourceBench, replay; 68 tests; CI | Real outfall inventories instead of synthetic candidates |
+| Engine, recommender, SourceBench, replay; 79 tests; CI | Real outfall inventories instead of synthetic candidates |
 | Staff roles and approvals, audit trail, public advisories | Expert review of likelihoods; lab calibration |
 | FHIR on the OAH IG, validated and pushed | Overflow-telemetry and sensor feeds as evidence |
 | Photo pipeline, evaluated on 35 Commons photos ([data/eval](data/eval/README.md)) | Number-plate redaction; expert-labelled photo set |

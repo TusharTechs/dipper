@@ -134,7 +134,9 @@ def enumerate_checks(belief: Belief, roles: Iterable[str] = ("citizen", "trained
     return out
 
 
-def evaluate(belief: Belief, check: ProposedCheck, stakes: float) -> Recommendation:
+def evaluate(belief: Belief, check: ProposedCheck, stakes: float, explain: bool = True) -> Recommendation:
+    """Score one check. With `explain=False` the plain-language parts (zones, label, reason) are skipped: the
+    ranking only needs the numbers, and explanations are built for the few checks actually shown."""
     prm = belief.params
     ct = CHECK_TYPES[check.check_type]
     p_now = belief.p
@@ -149,7 +151,7 @@ def evaluate(belief: Belief, check: ProposedCheck, stakes: float) -> Recommendat
         harm = belief.p_harmful(post)
         exp_loss += prob * min(advisory_losses(harm, stakes, prm))
         exp_h += prob * belief.entropy_s(post)
-        zone, mass = zone_summary(belief, post)
+        zone, mass = zone_summary(belief, post) if explain else ("", 0.0)
         branches[positive] = Branch(probability=round(prob, 4), p_harmful=round(harm, 4),
                                     top_source=belief.top_source(post), zone=zone, zone_mass=round(mass, 3),
                                     advise=should_advise(harm, stakes, prm))
@@ -157,6 +159,10 @@ def evaluate(belief: Belief, check: ProposedCheck, stakes: float) -> Recommendat
     search = max(0.0, h_now - exp_h)
     score = evsi + prm.search_weight * search - ct.cost - prm.delay_penalty_per_day * ct.delay_h / 24
     changes = branches[True].advise != branches[False].advise
+    if not explain:
+        return Recommendation(check=check, label="", score=round(score, 5), evsi=round(evsi, 5), search_bits=round(search, 4),
+                              cost=ct.cost, delay_h=ct.delay_h, p_positive=branches[True].probability,
+                              if_positive=branches[True], if_negative=branches[False], changes_decision=changes, reason="")
     label = _check_label(belief, check)
     return Recommendation(check=check, label=label, score=round(score, 5), evsi=round(evsi, 5), search_bits=round(search, 4),
                           cost=ct.cost, delay_h=ct.delay_h, p_positive=branches[True].probability,
@@ -169,12 +175,14 @@ def recommend(belief: Belief, stakes: float, k: int = 5, roles: Iterable[str] = 
     """Top-k checks by score. With `distinct`, a check whose outcomes are the same as a better-ranked check of
     the same type (for example the next access point along the same stretch) is left out, so a list shown to
     people offers real alternatives. The best check is always first either way."""
-    recs = [evaluate(belief, c, stakes) for c in enumerate_checks(belief, roles) if not exclude or c.key() not in exclude]
-    recs.sort(key=lambda r: -r.score)
+    fast = [evaluate(belief, c, stakes, explain=False) for c in enumerate_checks(belief, roles)
+            if not exclude or c.key() not in exclude]
+    fast.sort(key=lambda r: -r.score)  # stable: ties keep enumeration order, as before
     if not distinct:
-        return recs[:k]
+        return [evaluate(belief, r.check, stakes) for r in fast[:k]]
     out, seen = [], set()
-    for r in recs:
+    for f in fast:
+        r = evaluate(belief, f.check, stakes)
         sig = (r.check.check_type, r.check.role, r.if_positive.zone, r.if_negative.zone)
         if sig in seen:
             continue

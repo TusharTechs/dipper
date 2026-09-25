@@ -123,7 +123,8 @@ def test_photo_endpoint_records_both_observers(api, monkeypatch):
     assert r["photo"]["status"] == "analysed" and r["photo"]["conflicts"][0]["feature"] == "grey"
     roles = [o.role for o in main._cases[r["case_id"]].belief.observations]
     assert roles == ["citizen", "photo_model"]
-    assert [e.endswith("[photo_model]") for e in r["ledger"]] == [False, True]
+    assert "ledger" not in r                     # only the citizen's own results; never other people's evidence
+    assert r["report_token"]
     media = {o.media for o in main._cases[r["case_id"]].belief.observations}
     assert len(media) == 1 and (main.MEDIA_DIR / f"{media.pop()}.jpg").exists()   # both observations link the photo
 

@@ -24,7 +24,7 @@ import threading
 import time
 import uuid
 from collections import OrderedDict, defaultdict, deque
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
@@ -45,7 +45,6 @@ from dipper_engine.oah import map_submission
 from dipper_engine.photo import PhotoModelUnavailable, conflicts, extract, redact, to_observation, vision_provider
 from dipper_engine.scenario import TRUE_SOURCE, build_case, truth_result
 from dipper_engine.sim import load_networks, run_trial, summarise
-from dipper_engine.voi import recommend
 from dipper_engine.weather import fetch_context
 
 from .auth import ROLES, User, Users, current_user, demo_enabled, require, require_staff
@@ -109,6 +108,9 @@ async def lifespan(_: FastAPI):
         _cases.update(cases)
         _reach_of.update(reach_of)
         _scenario_truth.update(truth)
+        for cid in truth:
+            if cid in _cases:
+                _cases[cid].freeze_clock()
         users.purge_expired()
     maybe_purge(MEDIA_DIR, every_s=0)
     log.info(json.dumps({"event": "startup", "cases": len(_cases), "demo": demo_enabled()}))
@@ -126,7 +128,10 @@ async def lifespan(_: FastAPI):
         task.cancel()
 
 
+_DOCS = demo_enabled() or os.getenv("DIPPER_DOCS", "").lower() in ("1", "true", "yes")  # off in production
 app = FastAPI(lifespan=lifespan, title="Dipper API", version=__version__,
+              docs_url="/docs" if _DOCS else None, redoc_url="/redoc" if _DOCS else None,
+              openapi_url="/openapi.json" if _DOCS else None,
               description="Bayesian source hunting for sewage pollution in urban streams.")
 app.state.users = users
 app.add_middleware(CORSMiddleware, allow_origins=[o for o in os.getenv("DIPPER_CORS", "http://localhost:3000").split(",") if o],
@@ -230,19 +235,45 @@ def _signed(user: User) -> str:
     return f"{user.name} ({user.role.replace('_', ' ')}, {user.id})" + (" [demo]" if user.demo else "")
 
 
+# Locking: `_lock` guards the case registry and the database connection and is held only briefly. Each case
+# has its own lock for reading and updating its belief (ranking checks is the slow part), so cases proceed in
+# parallel. Order is always case lock, then `_lock`; never the reverse.
+_case_locks: dict[str, threading.RLock] = {}
+_import_lock = threading.Lock()
+
+
+def _case_lock(case_id: str) -> threading.RLock:
+    with _lock:
+        return _case_locks.setdefault(case_id, threading.RLock())
+
+
+@contextmanager
+def _locked_case(case_id: str):
+    with _lock:
+        c = get_case(case_id)
+    with _case_lock(c.id):
+        yield c
+
+
 def _last_activity(c: Case) -> datetime:
     return c.belief.clock or c.opened_at
 
 
-def _new_case(reach_id: str, opened_at: datetime | None, weather: "WeatherIn | None") -> Case:
+def _context_for(reach_id: str, opened_at: datetime | None, weather: "WeatherIn | None") -> tuple[Context, datetime]:
+    """Weather context for a new case. May call Open-Meteo, so it runs without any lock held."""
     g = reach(reach_id)
     tz = ZoneInfo(g.meta.get("tz") or TZ_BY_CITY.get(g.city, "UTC"))
     when = (opened_at or datetime.now(timezone.utc)).astimezone(tz)  # day/night activity uses local time
     if weather is not None:
-        ctx = Context(rain_48h_mm=weather.rain_48h_mm, tmax_c=weather.tmax_c, dry_days=weather.dry_days, hour=when.hour)
-    else:
-        mid = next(iter(g.nodes.values()))
-        ctx = fetch_context(mid.lat, mid.lon, when, cache_dir=CACHE_DIRS)
+        return Context(rain_48h_mm=weather.rain_48h_mm, tmax_c=weather.tmax_c, dry_days=weather.dry_days,
+                       hour=when.hour), when
+    mid = next(iter(g.nodes.values()))
+    return fetch_context(mid.lat, mid.lon, when, cache_dir=CACHE_DIRS), when
+
+
+def _new_case(reach_id: str, ctx: Context, when: datetime) -> Case:
+    """Register and persist a case. Call with `_lock` held."""
+    g = reach(reach_id)
     cid = f"C-{store.next_number():03d}"
     case = Case(cid, g, ctx, opened_at=when)
     _cases[cid], _reach_of[cid] = case, reach_id
@@ -251,23 +282,40 @@ def _new_case(reach_id: str, opened_at: datetime | None, weather: "WeatherIn | N
     return case
 
 
-def _case_for_signal(reach_id: str, when: datetime) -> Case:
-    """Join the most recently active open case on this reach, or open a new one."""
+def _open_case_on(reach_id: str, when: datetime) -> Case | None:
     open_cases = [c for c in _cases.values() if _reach_of.get(c.id) == reach_id and c.id not in _scenario_truth
                   and c.status in ("open", "localizing", "localized") and when - _last_activity(c) <= CASE_WINDOW]
-    return max(open_cases, key=_last_activity) if open_cases else _new_case(reach_id, when, None)
+    return max(open_cases, key=_last_activity) if open_cases else None
+
+
+def _case_for_signal(reach_id: str, when: datetime, create: bool = True) -> Case | None:
+    """Join the most recently active open case on this reach, or (if `create`) open a new one."""
+    with _lock:
+        c = _open_case_on(reach_id, when)
+    if c is not None or not create:
+        return c
+    ctx, local = _context_for(reach_id, when, None)   # network, outside the lock
+    with _lock:                                        # someone may have opened one in the meantime
+        return _open_case_on(reach_id, when) or _new_case(reach_id, ctx, local)
 
 
 def _add(case: Case, obs: Observation) -> None:
-    """Validate, persist, then apply. A rejected observation changes neither memory nor the database."""
+    """Validate, persist, then apply. A rejected observation changes neither memory nor the database.
+    Call with the case's lock held."""
     if case.status in Case.TERMINAL:
         raise HTTPException(409, f"case {case.id} is {case.status}; new evidence opens a new case")
     try:
         case.belief.validate(obs)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    store.add_observation(case.id, obs)
+    with _lock:
+        store.add_observation(case.id, obs)
     case.add(obs)
+
+
+def _record_action(case: Case, a) -> None:
+    with _lock:
+        store.add_action(case.id, a.type, a.approver, a.payload, a.at)
 
 
 # ---- schemas --------------------------------------------------------------------------
@@ -392,7 +440,7 @@ def get_reach(reach_id: str) -> dict:
 # ---- citizen: report, photo, mission, safe summary ----------------------------------------
 
 def _record_report(reach_id: str, lat: float, lon: float, features: dict[str, bool], observer: str | None,
-                   observed_at: datetime, media: str | None = None) -> tuple[Case, str, float]:
+                   observed_at: datetime, media: str | None = None) -> tuple[Case | None, str, float, int]:
     unknown = set(features) - set(FEATURES)
     if unknown:
         raise HTTPException(422, f"unknown features {sorted(unknown)}")
@@ -400,13 +448,22 @@ def _record_report(reach_id: str, lat: float, lon: float, features: dict[str, bo
     node, dist = g.nearest_node(lat, lon)
     if dist > 150:
         raise HTTPException(422, f"location is {dist:.0f} m from the mapped stream; move closer to the water")
-    case = _case_for_signal(reach_id, observed_at)
-    _add(case, Observation("report", True, node_id=node, role="citizen", features=tuple(features.items()),
-                           observed_at=observed_at, observer=pseudonym(observer), media=media))
-    return case, node, dist
+    polluted = any(features.values())
+    # "The water looks clean" is evidence too: a clean look at that spot for an open case. It never opens a
+    # pollution case on its own.
+    case = _case_for_signal(reach_id, observed_at, create=polluted)
+    if case is None:
+        return None, node, dist, -1
+    obs = (Observation("report", True, node_id=node, role="citizen", features=tuple(features.items()),
+                       observed_at=observed_at, observer=pseudonym(observer), media=media) if polluted else
+           Observation("instream_look", False, node_id=node, role="citizen", observed_at=observed_at,
+                       observer=pseudonym(observer), media=media))
+    with _case_lock(case.id):
+        _add(case, obs)
+        return case, node, dist, len(case.belief.observations) - 1
 
 
-_seen_reports: "OrderedDict[str, dict]" = OrderedDict()   # client_id -> first response (bounded)
+_seen_reports: "OrderedDict[str, dict | None]" = OrderedDict()   # client_id -> first response (None: pending)
 
 
 def _report_token(case_id: str, index: int) -> str:
@@ -416,18 +473,26 @@ def _report_token(case_id: str, index: int) -> str:
     return f"{index}.{mac}"
 
 
-def _report_for(case: Case, token: str | None) -> Observation:
-    """The citizen report a token was issued for, or 403."""
+def _report_for(case: Case, token: str | None) -> tuple[int, Observation]:
+    """The citizen report (or clean look) a token was issued for, with its index, or 403."""
+    ok, obs, idx = False, None, -1
     try:
         idx_s, mac = (token or "").split(".", 1)
         idx = int(idx_s)
-        ok = hmac.compare_digest(_report_token(case.id, idx), f"{idx}.{mac}")
-        obs = case.belief.observations[idx]
-    except (ValueError, IndexError):
+        if 0 <= idx < len(case.belief.observations):
+            ok = hmac.compare_digest(_report_token(case.id, idx), f"{idx}.{mac}")
+            obs = case.belief.observations[idx]
+    except ValueError:
         ok = False
-    if not ok or obs.kind != "report" or obs.role != "citizen":
+    if not ok or obs is None or obs.role != "citizen" or obs.kind not in ("report", "instream_look"):
         raise HTTPException(403, "this link is only for the person who sent the report")
-    return obs
+    return idx, obs
+
+
+def _answerer(case: Case, idx: int, report: Observation) -> str:
+    """Who answers a mission: the reporter's pseudonym, or one derived from the report itself, so each report
+    answers each mission at most once even when the phone sent no device id."""
+    return report.observer or pseudonym(f"report:{case.id}:{idx}")
 
 
 @app.post("/v1/signals")
@@ -436,17 +501,30 @@ def post_signal(body: SignalIn) -> dict:
     seen = body.observed_at or now
     if seen > now + timedelta(minutes=5) or seen < now - timedelta(days=7):
         raise HTTPException(422, "observed_at must be within the last 7 days")
-    with _lock:
-        if body.client_id and body.client_id in _seen_reports:
-            return _seen_reports[body.client_id]  # a retried or twice-flushed offline report
-        case, node, dist = _record_report(body.reach_id, body.lat, body.lon, body.features, body.observer, seen)
-        out = {"case_id": case.id, "snap_distance_m": round(dist, 1), "status": case.status,
-               "report_token": _report_token(case.id, len(case.belief.observations) - 1)}
+    if body.client_id:
+        with _lock:
+            if body.client_id in _seen_reports:  # a retried or twice-flushed offline report
+                if _seen_reports[body.client_id] is None:
+                    raise HTTPException(409, "this report is already being recorded")
+                return _seen_reports[body.client_id]
+            _seen_reports[body.client_id] = None  # pending
+    try:
+        case, node, dist, idx = _record_report(body.reach_id, body.lat, body.lon, body.features, body.observer, seen)
+    except BaseException:
         if body.client_id:
+            with _lock:
+                _seen_reports.pop(body.client_id, None)
+        raise
+    out = ({"case_id": None, "snap_distance_m": round(dist, 1), "status": "no_open_case", "report_token": None}
+           if case is None else
+           {"case_id": case.id, "snap_distance_m": round(dist, 1), "status": case.status,
+            "report_token": _report_token(case.id, idx)})
+    if body.client_id:
+        with _lock:
             _seen_reports[body.client_id] = out
             while len(_seen_reports) > 20000:
                 _seen_reports.popitem(last=False)
-        return out
+    return out
 
 
 @app.post("/v1/signals/photo")
@@ -475,9 +553,11 @@ def post_signal_photo(
         raise HTTPException(422, "that file is not a readable photo") from exc
     now = datetime.now(timezone.utc)
     sha = hashlib.sha256(red.jpeg).hexdigest() if red.face_detection else None
-    with _lock:
-        case, node, dist = _record_report(reach_id, lat, lon, answers, observer, now, media=sha)
-        first = len(case.belief.ledger) - 1
+    case, node, dist, index = _record_report(reach_id, lat, lon, answers, observer, now, media=sha)
+    if case is None:  # a clean report with no open case: thank the citizen, keep nothing
+        return {"case_id": None, "snap_distance_m": round(dist, 1), "status": "no_open_case", "report_token": None,
+                "photo": {"status": "not_analysed", "exif_removed": True, "faces_blurred": red.faces_blurred,
+                          "reason": "there is no open investigation on this stream, so the photo was not kept"}}
     photo_out: dict = {"exif_removed": True, "faces_blurred": red.faces_blurred}
     if not red.face_detection:
         photo_out |= {"status": "not_analysed", "reason": "face blurring is unavailable, so the photo was discarded"}
@@ -488,7 +568,7 @@ def post_signal_photo(
         try:
             pf = extract(red.jpeg)  # outside the lock: a slow model call must not block other requests
             pobs = to_observation(pf, node, observed_at=now + timedelta(seconds=1))
-            with _lock:
+            with _case_lock(case.id):
                 if pobs:
                     _add(case, Observation(pobs.kind, pobs.positive, node_id=pobs.node_id, role=pobs.role,
                                            features=pobs.features, observed_at=pobs.observed_at, media=sha))
@@ -500,9 +580,9 @@ def post_signal_photo(
         except Exception:  # noqa: BLE001 - any provider failure must not lose or duplicate the citizen's report
             log.exception(json.dumps({"event": "photo_model_error", "case": case.id}))
             photo_out |= {"status": "not_analysed", "reason": "the photo model failed; your report was still recorded"}
-    with _lock:
+    with _case_lock(case.id):  # only this citizen's own results: other evidence may have arrived meanwhile
         return {"case_id": case.id, "snap_distance_m": round(dist, 1), "status": case.status, "photo": photo_out,
-                "report_token": _report_token(case.id, first), "ledger": [e.text for e in case.belief.ledger[first:]]}
+                "report_token": _report_token(case.id, index)}
 
 
 MISSION_POOL = 12            # citizen checks considered for a mission
@@ -533,23 +613,21 @@ def _pick_mission(case: Case, report: Observation):
     return pool[i], walks[i]
 
 
-def _answered(case: Case, report: Observation, key: str) -> bool:
-    return report.observer is not None and any(
-        o.observer == report.observer and o.kind != "report" and
-        f"{o.kind}:{o.candidate_id or o.node_id}:citizen" == key for o in case.belief.observations)
+def _answered(case: Case, answerer: str, key: str) -> bool:
+    return any(o.observer == answerer and o.kind != "report" and f"{o.kind}:{o.candidate_id or o.node_id}:citizen" == key
+               for o in case.belief.observations)
 
 
 @app.get("/v1/citizen/cases/{case_id}")
 def citizen_case(case_id: str, x_report_token: str | None = Header(None)) -> dict:
     """What the reporting citizen may see: status, one mission near where they reported, what happened, any
     published advisory. Never the outfall ranking. Needs the token returned with their report."""
-    with _lock:
-        c = get_case(case_id)
-        report = _report_for(c, x_report_token)
+    with _locked_case(case_id) as c:
+        idx, report = _report_for(c, x_report_token)
         g = c.graph
         mission = None
         r, walk = _pick_mission(c, report)
-        if r and not _answered(c, report, r.check.key()):
+        if r and not _answered(c, _answerer(c, idx, report), r.check.key()):
             nd = g.nodes[_mission_node(g, r)]
             mission = {"key": r.check.key(), "type": r.check.check_type, "lat": nd.lat, "lon": nd.lon,
                        "kind": "outfall" if r.check.candidate_id else "stream",
@@ -566,18 +644,18 @@ def citizen_case(case_id: str, x_report_token: str | None = Header(None)) -> dic
 @app.post("/v1/citizen/cases/{case_id}/checks")
 def citizen_check(case_id: str, body: CitizenCheckIn, x_report_token: str | None = Header(None)) -> dict:
     """The reporting citizen answers one of the case's current citizen missions, once."""
-    with _lock:
-        c = get_case(case_id)
-        report = _report_for(c, x_report_token)
+    with _locked_case(case_id) as c:
+        idx, report = _report_for(c, x_report_token)
+        answerer = _answerer(c, idx, report)
         before = c.belief.location_entropy()
         mission = next((r for r in _missions(c) if r.check.key() == body.mission_key), None)
         if mission is None:
             raise HTTPException(409, "this mission is no longer open; refresh to get a new one")
-        if _answered(c, report, body.mission_key):
+        if _answered(c, answerer, body.mission_key):
             raise HTTPException(409, "you already answered this mission")
         chk = mission.check
         _add(c, Observation(chk.check_type, body.positive, node_id=chk.node_id, candidate_id=chk.candidate_id,
-                            role="citizen", observed_at=datetime.now(timezone.utc), observer=report.observer))
+                            role="citizen", observed_at=datetime.now(timezone.utc), observer=answerer))
         return {"status": c.status, "search_narrowed_bits": round(before - c.belief.location_entropy(), 2)}
 
 
@@ -606,8 +684,11 @@ def public_advisories() -> list[dict]:
 
 @app.post("/v1/cases")
 def create_case(body: CaseIn, user: User = Depends(require("inspector"))) -> dict:
+    ctx, when = _context_for(body.reach_id, body.opened_at, body.weather)
     with _lock:
-        return _new_case(body.reach_id, body.opened_at, body.weather).view()
+        c = _new_case(body.reach_id, ctx, when)
+    with _case_lock(c.id):
+        return c.view()
 
 
 @app.get("/v1/cases")
@@ -633,8 +714,8 @@ def list_cases(status: str | None = None, limit: int = Query(100, ge=1, le=500),
 
 @app.get("/v1/cases/{case_id}")
 def case_view(case_id: str, k: int = Query(5, ge=1, le=20), user: User = Depends(require_staff)) -> dict:
-    with _lock:
-        return get_case(case_id).view(n_recommendations=k) | {"simulated": case_id in _scenario_truth}
+    with _locked_case(case_id) as c:
+        return c.view(n_recommendations=k) | {"simulated": case_id in _scenario_truth}
 
 
 @app.get("/v1/cases/{case_id}/history")
@@ -648,8 +729,8 @@ def case_history(case_id: str, user: User = Depends(require_staff)) -> list[dict
 @app.get("/v1/cases/{case_id}/fhir")
 def case_fhir(case_id: str, user: User = Depends(require_staff)) -> dict:
     """FHIR R4 Bundle (collection): OAH LocationOah/GroupOah plus Dipper response profiles."""
-    with _lock:
-        return case_bundle(get_case(case_id))
+    with _locked_case(case_id) as c:
+        return case_bundle(c)
 
 
 @app.post("/v1/cases/{case_id}/fhir/push")
@@ -658,22 +739,20 @@ def case_fhir_push(case_id: str, user: User = Depends(require("inspector"))) -> 
     base = os.getenv("FHIR_BASE_URL")
     if not base:
         raise HTTPException(409, "no FHIR server configured (set FHIR_BASE_URL)")
-    with _lock:
-        bundle = case_bundle(get_case(case_id))
+    with _locked_case(case_id) as c:
+        bundle = case_bundle(c)
     try:
         result = push(bundle, base, token=os.getenv("FHIR_TOKEN"))
     except FhirPushError as exc:
         raise HTTPException(502, str(exc)) from exc
-    with _lock:
-        a = get_case(case_id).act("fhir_push", _signed(user), result)
-        store.add_action(case_id, a.type, a.approver, a.payload, a.at)
+    with _locked_case(case_id) as c:
+        _record_action(c, c.act("fhir_push", _signed(user), result))
     return result
 
 
 @app.get("/v1/cases/{case_id}/recommendations")
 def recommendations(case_id: str, k: int = Query(5, ge=1, le=20), user: User = Depends(require_staff)) -> list[dict]:
-    with _lock:
-        c = get_case(case_id)
+    with _locked_case(case_id) as c:
         return [r.as_dict() for r in c.ranked(k, distinct=True)]
 
 
@@ -683,8 +762,7 @@ def post_check(case_id: str, body: CheckIn, user: User = Depends(require_staff))
     if need != "citizen" and not user.can(need):
         raise HTTPException(403, f"{body.check_type.replace('_', ' ')} needs the {need} role")
     role = "inspector" if user.can("inspector") else "trained"
-    with _lock:
-        c = get_case(case_id)
+    with _locked_case(case_id) as c:
         try:
             _add(c, Observation(body.check_type, body.positive, node_id=body.node_id, candidate_id=body.candidate_id,
                                 role=role, observed_at=datetime.now(timezone.utc), observer=body.observer or user.id))
@@ -698,8 +776,7 @@ def post_action(case_id: str, body: ActionIn, user: User = Depends(require_staff
     need = ACTION_ROLE[body.type]
     if not user.can(need):
         raise HTTPException(403, f"{body.type.replace('_', ' ')} needs the {need.replace('_', ' ')} role")
-    with _lock:
-        c = get_case(case_id)
+    with _locked_case(case_id) as c:
         if body.type == "notify_utility" and c.status != "localized":
             raise HTTPException(409, "hand-off is available once one entry point reaches the localization threshold")
         payload = ({"note": body.note} if body.note else {}) | (
@@ -709,7 +786,7 @@ def post_action(case_id: str, body: ActionIn, user: User = Depends(require_staff
             a = c.act(body.type, _signed(user), payload)
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
-        store.add_action(case_id, a.type, a.approver, a.payload, a.at)
+        _record_action(c, a)
         log.info(json.dumps({"event": "action", "case": case_id, "type": a.type, "user": user.id}))
         return c.view()
 
@@ -724,8 +801,9 @@ def import_oah(body: OahImportIn, user: User = Depends(require("inspector"))) ->
     """Import OneAquaHealth Citizen Science App submissions (see dipper_engine/oah.py for the mapping)."""
     g = reach(body.reach_id)
     results = []
-    with _lock:
-        seen = {o.observer for c in _cases.values() for o in c.belief.observations if o.observer}
+    with _import_lock:  # imports run one at a time, so the duplicate check below holds
+        with _lock:
+            seen = {o.observer for c in _cases.values() for o in c.belief.observations if o.observer}
         for sub in body.submissions:
             try:
                 m = map_submission(sub)
@@ -742,7 +820,8 @@ def import_oah(body: OahImportIn, user: User = Depends(require("inspector"))) ->
                                 "reason": "too far from the mapped stream" if dist > 150 else m.reason})
                 continue
             case = _case_for_signal(body.reach_id, m.observed_at)
-            _add(case, obs)
+            with _case_lock(case.id):
+                _add(case, obs)
             seen.add(obs.observer)
             results.append({"id": m.submission_id, "status": "imported", "case_id": case.id, "evidence": m.reason,
                             "kind": obs.kind, "positive": obs.positive})
@@ -768,6 +847,7 @@ def scenario_start(wet: bool = False, user: User = Depends(require("inspector"))
         _cases[case.id], _reach_of[case.id] = case, DEMO_REACH
         _scenario_truth[case.id] = TRUE_SOURCE
         store.create(case, DEMO_REACH, scenario_truth=TRUE_SOURCE)
+    with _case_lock(case.id):
         return case.view() | {"simulated": True}
 
 
@@ -775,13 +855,12 @@ def scenario_start(wet: bool = False, user: User = Depends(require("inspector"))
 def scenario_step(case_id: str, user: User = Depends(require("inspector"))) -> dict:
     """Perform the engine's top recommendation with a result derived from the simulated truth."""
     _demo_only()
-    with _lock:
-        if case_id not in _scenario_truth:
-            raise HTTPException(404, "not a scenario case")
-        c = get_case(case_id)
+    if case_id not in _scenario_truth:
+        raise HTTPException(404, "not a scenario case")
+    with _locked_case(case_id) as c:
         if c.status not in ("open", "localizing"):
             raise HTTPException(409, "the search is complete")
-        rec = recommend(c.belief, c.stakes, k=1)[0]
+        rec = c.ranked(1)[0]  # the same top check the workspace shows
         positive = truth_result(c.graph, rec.check, _scenario_truth[case_id])
         _add(c, Observation(rec.check.check_type, positive, node_id=rec.check.node_id, candidate_id=rec.check.candidate_id,
                             role=rec.check.role, observed_at=_last_activity(c) + timedelta(minutes=25), tier="simulated"))
@@ -793,11 +872,19 @@ def scenario_step(case_id: str, user: User = Depends(require("inspector"))) -> d
 
 @app.get("/v1/context/weather")
 def weather(lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180), when: AwareDatetime = Query()) -> dict:
-    """Weather context, only near mapped reaches (this is not a general weather proxy)."""
-    near = any(reach(p.stem).nearest_node(lat, lon)[1] < 5000 for p in REACH_DIR.glob("*.geojson"))
-    if not near:
+    """Weather context for a mapped stream (not a general weather proxy). The point is snapped to the nearest
+    stream's reference point and the date to the day, within the last 60 days, so callers cannot make the
+    server fetch or cache arbitrary places and times."""
+    now = datetime.now(timezone.utc)
+    if when > now + timedelta(hours=1) or when < now - timedelta(days=60):
+        raise HTTPException(422, "weather is available for the last 60 days only")
+    dist, g = min(((reach(p.stem).nearest_node(lat, lon)[1], reach(p.stem)) for p in REACH_DIR.glob("*.geojson")),
+                  key=lambda x: x[0])
+    if dist >= 5000:
         raise HTTPException(422, "weather is only available near a mapped stream")
-    ctx = fetch_context(lat, lon, when, cache_dir=CACHE_DIRS)
+    ref = next(iter(g.nodes.values()))  # the same point cases on this stream use
+    day = when.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    ctx = fetch_context(ref.lat, ref.lon, day, cache_dir=CACHE_DIRS)
     return {"regime": ctx.regime, "summary": ctx.describe(), **ctx.__dict__, "source": "Open-Meteo (CC BY 4.0)"}
 
 
@@ -835,7 +922,9 @@ async def _site_headers(request: Request, call_next):
         response.headers.update({"Content-Security-Policy": CSP, "X-Content-Type-Options": "nosniff",
                                  "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY",
                                  "Permissions-Policy": "geolocation=(self), camera=(self)"})
-    response.headers["Strict-Transport-Security"] = "max-age=31536000"
+    proto = request.headers.get("x-forwarded-proto", "") if PROXY_HOPS else ""
+    if request.url.scheme == "https" or proto.split(",")[-1].strip() == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000"
     return response
 
 if WEB_DIST.exists():

@@ -38,6 +38,7 @@ const en = {
   landmark: 'Or choose the nearest point from a list', outfall: 'the outfall pipe at the marked spot', streamAt: 'the stream bank',
   about: 'about', fromYou: 'from where you reported', choose: 'Choose a point…', near: 'near', up: 'km above where the stream ends',
   language: 'Language',
+  cleanThanks: 'Thank you. No pollution investigation is open on this stream right now, so there is nothing to update.', recent: 'Your recent reports', pubTitle: 'Public advisories', pubLead: 'Stretches of urban streams where contact with the water is currently discouraged. Each advisory was approved by a public-health officer. Suspected pipes and addresses are never shown.', pubNone: 'No active advisories.', pubNoneNote: 'This does not mean the water is safe to drink or swim in.', pubMap: 'Map of the advisory stretches, shown in red', simulated: 'simulated demo', loading: 'Loading…',
 }
 type Strings = typeof en
 
@@ -61,6 +62,7 @@ const pt: Strings = {
   landmark: 'Ou escolha o ponto mais próximo numa lista', outfall: 'o tubo de descarga no local marcado', streamAt: 'a margem da ribeira',
   about: 'cerca de', fromYou: 'de onde comunicou', choose: 'Escolha um ponto…', near: 'perto de', up: 'km acima da foz da ribeira',
   language: 'Idioma',
+  cleanThanks: 'Obrigado. Não há nenhuma investigação de poluição aberta nesta ribeira, por isso não há nada a atualizar.', recent: 'As suas comunicações recentes', pubTitle: 'Avisos públicos', pubLead: 'Troços de ribeiras urbanas onde o contacto com a água é desaconselhado. Cada aviso foi aprovado por um profissional de saúde pública. Tubos suspeitos e moradas nunca são mostrados.', pubNone: 'Não há avisos ativos.', pubNoneNote: 'Isto não significa que a água seja própria para beber ou nadar.', pubMap: 'Mapa dos troços com aviso, a vermelho', simulated: 'demonstração simulada', loading: 'A carregar…',
 }
 
 const nb: Strings = {
@@ -83,6 +85,7 @@ const nb: Strings = {
   landmark: 'Eller velg nærmeste punkt fra en liste', outfall: 'utløpsrøret på det markerte stedet', streamAt: 'bekkekanten',
   about: 'omtrent', fromYou: 'fra der du meldte', choose: 'Velg et punkt …', near: 'ved', up: 'km ovenfor bekkens utløp',
   language: 'Språk',
+  cleanThanks: 'Takk. Det er ingen åpen forurensningssak for denne bekken nå, så det er ingenting å oppdatere.', recent: 'Dine siste meldinger', pubTitle: 'Offentlige råd', pubLead: 'Strekninger av bybekker der kontakt med vannet frarådes nå. Hvert råd er godkjent av helsemyndighetene. Mistenkte rør og adresser vises aldri.', pubNone: 'Ingen aktive råd.', pubNoneNote: 'Det betyr ikke at vannet er trygt å drikke eller bade i.', pubMap: 'Kart over strekningene med råd, vist i rødt', simulated: 'simulert demo', loading: 'Laster …',
 }
 
 const nl: Strings = {
@@ -105,6 +108,7 @@ const nl: Strings = {
   landmark: 'Of kies het dichtstbijzijnde punt uit een lijst', outfall: 'de lozingsbuis op de gemarkeerde plek', streamAt: 'de oever',
   about: 'ongeveer', fromYou: 'van waar u meldde', choose: 'Kies een punt…', near: 'bij', up: 'km stroomopwaarts van de monding',
   language: 'Taal',
+  cleanThanks: 'Bedankt. Er loopt nu geen vervuilingsonderzoek voor deze beek, dus er valt niets bij te werken.', recent: 'Uw recente meldingen', pubTitle: 'Openbare adviezen', pubLead: 'Delen van stadsbeken waar contact met het water nu wordt afgeraden. Elk advies is goedgekeurd door een gezondheidsdienst. Verdachte buizen en adressen worden nooit getoond.', pubNone: 'Geen actieve adviezen.', pubNoneNote: 'Dat betekent niet dat het water veilig is om te drinken of in te zwemmen.', pubMap: 'Kaart van de delen met een advies, in het rood', simulated: 'gesimuleerde demo', loading: 'Laden…',
 }
 
 export const T: Record<Lang, Strings> = { en, pt, nb, nl }

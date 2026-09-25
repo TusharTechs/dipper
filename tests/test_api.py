@@ -364,3 +364,119 @@ def test_weather_cache_that_cannot_be_written_does_not_break_a_case(tmp_path, mo
     finally:
         ro.chmod(0o700)
     assert ctx.rain_48h_mm == 0.0
+
+
+def test_a_clean_report_is_negative_evidence_and_never_opens_a_case(api):
+    main, client = api
+    nd = _node(main)
+    clean = {"reach_id": "coimbra-ribeira-de-coselhas", "lat": nd.lat, "lon": nd.lon, "features": {}}
+    r = client.post("/v1/signals", json=clean).json()
+    assert r["case_id"] is None and r["status"] == "no_open_case" and not main._cases
+    polluted = client.post("/v1/signals", json=dict(clean, features={"grey": True})).json()
+    case = main._cases[polluted["case_id"]]
+    harm = case.belief.p_harmful()
+    joined = client.post("/v1/signals", json=clean).json()
+    assert joined["case_id"] == case.id
+    last = case.belief.observations[-1]
+    assert last.kind == "instream_look" and last.positive is False
+    assert case.belief.p_harmful() <= harm                       # a clean look never raises the risk
+    # the clean reporter can follow the case with their own token
+    assert client.get(f"/v1/citizen/cases/{case.id}", headers={"X-Report-Token": joined["report_token"]}).status_code == 200
+
+
+def test_a_report_without_a_device_id_still_answers_each_mission_once(api):
+    main, client = api
+    nd = _node(main)
+    r = client.post("/v1/signals", json={"reach_id": "coimbra-ribeira-de-coselhas", "lat": nd.lat, "lon": nd.lon,
+                                         "features": {"grey": True}}).json()               # no observer
+    tok = {"X-Report-Token": r["report_token"]}
+    key = client.get(f"/v1/citizen/cases/{r['case_id']}", headers=tok).json()["mission"]["key"]
+    body = {"mission_key": key, "positive": False}
+    assert client.post(f"/v1/citizen/cases/{r['case_id']}/checks", json=body, headers=tok).status_code == 200
+    assert client.post(f"/v1/citizen/cases/{r['case_id']}/checks", json=body, headers=tok).status_code == 409
+    assert client.get(f"/v1/citizen/cases/{r['case_id']}", headers={"X-Report-Token": "-1.x"}).status_code == 403
+
+
+def test_fhir_advisory_uses_the_approved_wording_in_the_city_language(api):
+    main, client = api
+    inv, ph = token(client, "inspector"), token(client, "public_health")
+    g = main.reach("oslo-hovinbekken")
+    nd = [n for n in g.nodes.values() if n.access][2]
+    cid = client.post("/v1/signals", json={"reach_id": "oslo-hovinbekken", "lat": nd.lat, "lon": nd.lon,
+                                           "features": {"grey": True, "sewage_odour": True}}).json()["case_id"]
+    client.post(f"/v1/cases/{cid}/actions", json={"type": "advisory"}, headers=ph)
+    approved = main._cases[cid].actions[-1].payload["text"]
+    assert set(approved) == {"en", "nb"}
+    comm = [e["resource"] for e in client.get(f"/v1/cases/{cid}/fhir", headers=inv).json()["entry"]
+            if e["resource"]["resourceType"] == "Communication"][0]
+    assert [p["contentString"] for p in comm["payload"]] == [approved["nb"], approved["en"]]
+    assert "Evite" not in str(comm)
+
+
+def test_production_mode_hides_api_docs(tmp_path, monkeypatch):
+    monkeypatch.setenv("DIPPER_DB", str(tmp_path / "prod.sqlite3"))
+    monkeypatch.setenv("DIPPER_DEMO", "0")
+    monkeypatch.delenv("DIPPER_DOCS", raising=False)
+    import dipper_api.main as main
+    main = importlib.reload(main)
+    with TestClient(main.app) as client:
+        assert client.get("/docs").status_code == 404 and client.get("/openapi.json").status_code == 404
+        assert client.get("/health").status_code == 200
+
+
+def test_staff_tokens_can_be_revoked(api):
+    main, client = api
+    user, tok = main.users.create("A. Inspector", "inspector", ttl_s=3600)
+    h = {"Authorization": f"Bearer {tok}"}
+    assert client.get("/v1/auth/me", headers=h).status_code == 200
+    assert main.users.revoke(user.id)
+    assert client.get("/v1/auth/me", headers=h).status_code == 401
+
+
+def test_weather_endpoint_rejects_old_dates_and_far_away_points(api):
+    from datetime import datetime, timedelta, timezone
+    main, client = api
+    nd = _node(main)
+    old = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
+    assert client.get("/v1/context/weather", params={"lat": nd.lat, "lon": nd.lon, "when": old}).status_code == 422
+    now = datetime.now(timezone.utc).isoformat()
+    assert client.get("/v1/context/weather", params={"lat": 0.0, "lon": 0.0, "when": now}).status_code == 422
+
+
+def test_hsts_is_only_sent_over_https(api):
+    main, _ = api
+    with TestClient(main.site) as site:
+        assert "strict-transport-security" not in site.get("/api/health").headers
+    with TestClient(main.site, base_url="https://testserver") as site:
+        assert "strict-transport-security" in site.get("/api/health").headers
+
+
+def test_concurrent_traffic_across_cases_replays_to_the_same_posteriors(api):
+    """Per-case locks let cases proceed in parallel; the event store must still replay every case exactly."""
+    from concurrent.futures import ThreadPoolExecutor
+    main, client = api
+    inv = token(client, "inspector")
+    reaches = ["coimbra-ribeira-de-coselhas", "oslo-hovinbekken", "oslo-hoffselva"]
+    points = {r: [n for n in main.reach(r).nodes.values() if n.access][:6] for r in reaches}
+
+    def citizen(i):
+        r = reaches[i % 3]
+        nd = points[r][i % 6]
+        rep = client.post("/v1/signals", json={"reach_id": r, "lat": nd.lat, "lon": nd.lon,
+                                               "features": {"grey": True}, "observer": f"dev-{i}"}).json()
+        tok = {"X-Report-Token": rep["report_token"]}
+        m = client.get(f"/v1/citizen/cases/{rep['case_id']}", headers=tok).json()["mission"]
+        if m:
+            client.post(f"/v1/citizen/cases/{rep['case_id']}/checks", json={"mission_key": m["key"], "positive": False},
+                        headers=tok)
+        client.post(f"/v1/cases/{rep['case_id']}/checks", headers=inv,
+                    json={"check_type": "instream_look", "positive": i % 2 == 0, "node_id": points[r][(i + 1) % 6].id})
+        return rep["case_id"]
+
+    with ThreadPoolExecutor(8) as ex:
+        cids = set(ex.map(citizen, range(24)))
+    assert len(cids) == 3                                               # one open case per stream
+    reloaded, _, _ = main.Store(Path(os.environ["DIPPER_DB"])).load_all(main.reach)
+    for cid in cids:
+        assert len(reloaded[cid].belief.observations) == len(main._cases[cid].belief.observations)
+        assert np.allclose(reloaded[cid].belief.p, main._cases[cid].belief.p)

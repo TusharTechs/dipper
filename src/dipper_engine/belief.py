@@ -92,12 +92,18 @@ class Belief:
         self.s_of = [s for _, s in self.states]
         self._point = np.array([h in POINT_SOURCE for h, _ in self.states])
         self._harm = np.array([h in HARMFUL for h, _ in self.states])
+        # Index of each state's entry point, for vectorised marginals over sources.
+        self._s_keys = [c.id for c in graph.candidates] + [OUTSIDE, NONE]
+        key_at = {k: i for i, k in enumerate(self._s_keys)}
+        self._s_idx = np.array([key_at[s] for s in self.s_of])
+        self._n_cand = len(graph.candidates)
+        self._byh_cache: dict[int, np.ndarray] = {}
         self.logp = np.log(self._prior(candidate_weights))
         self.observations: list[Observation] = []
         self.ledger: list[LedgerEntry] = []
         self._pres_cache: dict[str, np.ndarray] = {}
         self.clock: datetime | None = None            # time of the latest observation
-        self._last_positive: datetime | None = None
+        self._positives: list[datetime] = []           # times of positive sightings (the start of a burst)
         self._persisting = False
         # Day/night discharge activity follows the stream's local time at each observation, not the case opening.
         tz = graph.meta.get("tz") if hasattr(graph, "meta") else None
@@ -128,25 +134,45 @@ class Belief:
         return e / e.sum()
 
     def _by_h(self, table: dict[str, float]) -> np.ndarray:
-        return np.array([table.get(h, 0.0) for h, _ in self.states])
+        """A per-hypothesis table spread over states. Parameter tables never change, so this is cached."""
+        v = self._byh_cache.get(id(table))
+        if v is None:
+            v = self._byh_cache[id(table)] = np.array([table.get(h, 0.0) for h, _ in self.states])
+        return v
+
+    def _activity_vec(self) -> np.ndarray:
+        """P(discharging now) per state for point sources (0 for diffuse), cached with presence."""
+        v = self._pres_cache.get("__activity__")
+        if v is None:
+            act = {h: self._activity(h) for h in POINT_SOURCE}
+            v = self._pres_cache["__activity__"] = np.array([act.get(h, 0.0) for h, _ in self.states])
+        return v
 
     def _activity(self, h: str) -> float:
         a = activity(self.params, h, self._act_ctx)
         return max(a, self.params.activity_persist) if self._persisting else a
 
-    def _refresh_persistence(self) -> None:
-        if self.clock is not None and self._tz is not None:
-            hour = self.clock.astimezone(self._tz).hour
+    def at(self, t: datetime | None) -> None:
+        """Set the discharge state (day or night, inside a burst or not) to what it was at time `t`. Evidence is
+        scored at its own time, even when it arrives late (an offline report), and a recommendation at the time
+        the check would be made."""
+        if t is None:
+            return
+        if self._tz is not None:
+            hour = t.astimezone(self._tz).hour
             if hour != self._act_ctx.hour:
                 day_before = self._act_ctx.daytime
                 self._act_ctx = replace(self._act_ctx, hour=hour)
                 if self._act_ctx.daytime != day_before:
                     self._pres_cache.clear()
-        on = (self._last_positive is not None and self.clock is not None and
-              (self.clock - self._last_positive).total_seconds() <= self.params.persist_window_h * 3600)
+        window = self.params.persist_window_h * 3600
+        on = any(0 <= (t - p).total_seconds() <= window for p in self._positives)
         if on != self._persisting:
             self._persisting = on
             self._pres_cache.clear()
+
+    def _refresh_persistence(self) -> None:
+        self.at(self.clock)
 
     def presence(self, node_id: str) -> np.ndarray:
         """P(pollution of the state's type is present at node_id at check time), per state."""
@@ -193,8 +219,8 @@ class Belief:
                 return 1 - p_pos
             return p_pos * self._feature_factor(obs, p_true / p_pos)
         if obs.kind == "outfall_look":
-            act = np.array([self._activity(h) if h in POINT_SOURCE else 0.0 for h, _ in self.states])
-            at_src = np.array([s == obs.candidate_id for s in self.s_of], dtype=float)
+            act = self._activity_vec()
+            at_src = (self._s_idx == self._s_keys.index(obs.candidate_id)).astype(float)
             det = prm.role_sensitivity[obs.role] * self._by_h(prm.visibility)
             fa = max(prm.role_false_alarm[obs.role], prm.other_outfall_dirty)
             p_true = at_src * act * det
@@ -228,11 +254,9 @@ class Belief:
     def update(self, obs: Observation) -> LedgerEntry:
         """Bayes update. Validates first, so a rejected observation leaves the belief untouched."""
         self.validate(obs)
-        # Score the observation with the discharge state at its own time: move the clock first, so a check made
-        # hours after the last positive sighting no longer counts as inside that burst.
-        if obs.observed_at is not None:
-            self.clock = max(self.clock, obs.observed_at) if self.clock else obs.observed_at
-        self._refresh_persistence()
+        # Score the observation with the discharge state at its own time: a check made hours after the last
+        # positive sighting is outside that burst, and a late-arriving night-time report is scored as night.
+        self.at(obs.observed_at or self.clock)
         text = obs.describe(self.graph)
         before = self.p
         lik = np.clip(self.likelihood(obs), 1e-12, None)
@@ -256,9 +280,11 @@ class Belief:
                 best_h, best_w = h, w
         self.logp = self.logp + np.log(lik)
         self.observations.append(obs)
-        if obs.observed_at is not None and obs.positive and obs.kind in ("report", "instream_look", "outfall_look"):
-            self._last_positive = max(self._last_positive, obs.observed_at) if self._last_positive else obs.observed_at
-        self._refresh_persistence()
+        if obs.observed_at is not None:
+            self.clock = max(self.clock, obs.observed_at) if self.clock else obs.observed_at
+            if obs.positive and obs.kind in ("report", "instream_look", "outfall_look"):
+                self._positives.append(obs.observed_at)
+        self.at(self.clock)  # back to the latest time, which is where the next check starts from
         after = self.p
         entry = LedgerEntry(
             index=len(self.ledger) + 1, text=text, kind=obs.kind, tier=obs.tier,
@@ -297,16 +323,15 @@ class Belief:
 
     def marginal_s(self, p: np.ndarray | None = None) -> dict[str, float]:
         """P(entry point) for each candidate, OUTSIDE, and NONE (diffuse). Sums to 1."""
+        return dict(zip(self._s_keys, self._marginal_s_vec(p).tolist()))
+
+    def _marginal_s_vec(self, p: np.ndarray | None = None) -> np.ndarray:
+        """Same as marginal_s, as an array in the order candidates, OUTSIDE, NONE."""
         p = self.p if p is None else p
-        out: dict[str, float] = {c.id: 0.0 for c in self.graph.candidates}
-        out[OUTSIDE] = 0.0
-        out[NONE] = 0.0
-        for pi, s in zip(p, self.s_of):
-            out[s] += float(pi)
-        return out
+        return np.bincount(self._s_idx, weights=p, minlength=len(self._s_keys))
 
     def entropy_s(self, p: np.ndarray | None = None) -> float:
-        ms = np.array(list(self.marginal_s(p).values()))
+        ms = self._marginal_s_vec(p)
         ms = ms[ms > 0]
         return float(-(ms * np.log2(ms)).sum())
 
@@ -321,12 +346,11 @@ class Belief:
         return float(-(pts * np.log2(pts)).sum())
 
     def top_source(self, p: np.ndarray | None = None) -> tuple[str, float]:
-        ms = self.marginal_s(p)
-        cands = {k: v for k, v in ms.items() if k not in (OUTSIDE, NONE)}
-        if not cands:
-            return (OUTSIDE, ms[OUTSIDE])
-        cid = max(cands, key=cands.get)
-        return (cid, round(cands[cid], 4))
+        ms = self._marginal_s_vec(p)
+        if not self._n_cand:
+            return (OUTSIDE, float(ms[-2]))
+        i = int(np.argmax(ms[:self._n_cand]))  # first maximum, as max() over the dict did
+        return (self._s_keys[i], round(float(ms[i]), 4))
 
     def p_harmful(self, p: np.ndarray | None = None) -> float:
         p = self.p if p is None else p

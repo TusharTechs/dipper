@@ -68,6 +68,7 @@ def build_case(wet: bool = False, ctx: Context | None = None) -> tuple[Case, dat
     mid = graph.nodes[graph.candidate(TRUE_SOURCE).node_id]
     ctx = ctx or fetch_context(mid.lat, mid.lon, when, cache_dir=CACHE)
     case = Case("C-014" + ("-wet" if wet else ""), graph, ctx, opened_at=when)
+    case.freeze_clock()  # a replay: "now" is the replay's own time, not today
     for i, (nid, feats) in enumerate(zip(report_nodes(graph), REPORT_FEATURES)):
         case.add(Observation("report", True, node_id=nid, role="citizen", features=feats,
                              observed_at=when + timedelta(minutes=[0, 30, 55][i]), observer=f"cit-{i + 1:03d}",

@@ -1417,6 +1417,112 @@
       }
     },
     {
+      "fullUrl": "https://example.org/fhir/dipper-demo/ServiceRequest/SIM-confirm-C-014",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "id": "SIM-confirm-C-014",
+        "meta": {
+          "profile": [
+            "https://example.org/fhir/dipper/StructureDefinition/dipper-confirmation-request"
+          ],
+          "tag": [
+            {
+              "system": "https://example.org/fhir/dipper/CodeSystem/dipper-codes",
+              "code": "simulated",
+              "display": "Simulated"
+            }
+          ],
+          "security": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/v3-ActReason",
+              "code": "HTEST",
+              "display": "test health data"
+            }
+          ]
+        },
+        "status": "active",
+        "intent": "order",
+        "code": {
+          "coding": [
+            {
+              "system": "https://example.org/fhir/dipper/CodeSystem/dipper-codes",
+              "code": "confirm-entry",
+              "display": "Confirm the entry point before repair"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Location/SIM-loc-outfall-O9"
+        },
+        "authoredOn": "2026-09-18T12:00:00+00:00",
+        "requester": {
+          "reference": "Device/SIM-dev-dipper-engine"
+        },
+        "reasonCode": [
+          {
+            "text": "O-9 holds 94% of the probability; confirm with a dye test, smoke test or CCTV before repair."
+          }
+        ],
+        "supportingInfo": [
+          {
+            "reference": "DetectedIssue/SIM-case-C-014"
+          },
+          {
+            "reference": "RiskAssessment/SIM-risk-C-014"
+          }
+        ],
+        "text": {
+          "status": "generated",
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>ServiceRequest</b> Confirm the entry point before repair · active</p></div>"
+        }
+      }
+    },
+    {
+      "fullUrl": "https://example.org/fhir/dipper-demo/Task/SIM-task-C-014-confirm",
+      "resource": {
+        "resourceType": "Task",
+        "id": "SIM-task-C-014-confirm",
+        "meta": {
+          "profile": [
+            "https://example.org/fhir/dipper/StructureDefinition/dipper-field-task"
+          ],
+          "tag": [
+            {
+              "system": "https://example.org/fhir/dipper/CodeSystem/dipper-codes",
+              "code": "simulated",
+              "display": "Simulated"
+            }
+          ],
+          "security": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/v3-ActReason",
+              "code": "HTEST",
+              "display": "test health data"
+            }
+          ]
+        },
+        "status": "requested",
+        "intent": "order",
+        "basedOn": [
+          {
+            "reference": "ServiceRequest/SIM-confirm-C-014"
+          }
+        ],
+        "for": {
+          "reference": "Location/SIM-loc-outfall-O9"
+        },
+        "authoredOn": "2026-09-18T12:00:00+00:00",
+        "businessStatus": {
+          "text": "Awaiting the utility"
+        },
+        "description": "Confirm that O-9 is the entry point (dye test, smoke test or CCTV) before repair.",
+        "text": {
+          "status": "generated",
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>Task</b> Confirm that O-9 is the entry point (dye test, smoke test or CCTV) before repair. · requested</p></div>"
+        }
+      }
+    },
+    {
       "fullUrl": "https://example.org/fhir/dipper-demo/Flag/SIM-flag-C-014",
       "resource": {
         "resourceType": "Flag",
@@ -1454,7 +1560,7 @@
           "reference": "Location/SIM-loc-reach-Ribeira-de-Coselhas"
         },
         "period": {
-          "start": "2026-09-25T12:22:55.020664+00:00"
+          "start": "2026-09-25T12:43:13.569849+00:00"
         },
         "author": {
           "reference": "Device/SIM-dev-dipper-engine"
@@ -1501,16 +1607,17 @@
             "reference": "RiskAssessment/SIM-risk-C-014"
           }
         ],
-        "sent": "2026-09-25T12:22:55.020664+00:00",
+        "sent": "2026-09-25T12:43:13.569849+00:00",
         "sender": {
           "display": "Approved by staff"
         },
+        "language": "pt",
         "payload": [
           {
-            "contentString": "Evite o contacto com a água e mantenha os cães fora da Ribeira de Coselhas até novo aviso. Motivo: provável descarga de esgoto; ainda sem confirmação laboratorial."
+            "contentString": "Evite o contacto com a água e mantenha os cães fora da Ribeira de Coselhas, a jusante do troço afetado, até novo aviso. Motivo: provável descarga de esgoto, ainda sem confirmação laboratorial."
           },
           {
-            "contentString": "Avoid contact with the water and keep dogs out of Ribeira de Coselhas until further notice. Reason: probable sewage discharge; not yet confirmed by a lab."
+            "contentString": "Avoid contact with the water and keep dogs out of Ribeira de Coselhas downstream of the affected stretch until further notice. Reason: probable sewage discharge, not yet confirmed by a lab."
           }
         ],
         "text": {
@@ -1549,6 +1656,9 @@
           },
           {
             "reference": "RiskAssessment/SIM-risk-C-014"
+          },
+          {
+            "reference": "ServiceRequest/SIM-confirm-C-014"
           }
         ],
         "recorded": "2026-09-18T12:00:00+00:00",

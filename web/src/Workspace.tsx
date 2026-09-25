@@ -262,6 +262,7 @@ function HandoffPanel({ view, canPush }: { view: CaseView; canPush: boolean }) {
     return { total: refs.length, missing: refs.filter((r) => !ids.has(r)).length }
   }, [bundle])
   const find = (t: string) => bundle?.entry.find((e: any) => e.resource.resourceType === t)?.resource
+  const confirm = (bundle?.entry ?? []).map((e: any) => e.resource).find((r: any) => r.resourceType === 'ServiceRequest' && r.code?.coding?.[0]?.code === 'confirm-entry')
   const download = () => {
     const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/fhir+json' }))
     const a = document.createElement('a'); a.href = url; a.download = `${view.id}.bundle.json`; a.click(); URL.revokeObjectURL(url)
@@ -284,6 +285,11 @@ function HandoffPanel({ view, canPush }: { view: CaseView; canPush: boolean }) {
           <section className="card"><h3>Exposure risk · RiskAssessment</h3><p>{find('RiskAssessment')?.prediction?.[0]?.rationale}</p>
             <p className="muted small">Subject: {find('RiskAssessment')?.subject?.reference} (people and animals using the reach)</p></section>
         </div>
+        {confirm && <section className="card confirm-card">
+          <h3>Confirm before repair · ServiceRequest {confirm.intent === 'order' ? '(sent to the utility)' : '(sent with the hand-off)'}</h3>
+          <p>{confirm.reasonCode?.[0]?.text}</p>
+          <p className="muted small">Dipper's localization is a probability, not proof. In the simulation benchmark about 1 in 7 localizations points at the wrong outfall.</p>
+        </section>}
         <div className="row">
           <button onClick={download}>Download bundle (JSON)</button>
           {canPush && <button className="primary" onClick={pushNow}>Send to FHIR server</button>}

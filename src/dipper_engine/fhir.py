@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .belief import Observation
-from .case import Case
+from .case import Case, advisory_text
 from .model import HYPOTHESIS_LABELS, NONE, OUTSIDE
 from .voi import recommend
 
@@ -248,6 +248,29 @@ class _Builder:
                 "description": r.label,
             })
             targets.append(sr)
+        if case.status in ("localized", "handed_off") and top_id not in (OUTSIDE, NONE):
+            # Localization is a probability (SourceBench: about 1 in 7 localizations is wrong), so the hand-off
+            # asks the utility to confirm the entry point before anyone digs.
+            loc = self.point_location(None, top_id)
+            conf = self.add({
+                "resourceType": "ServiceRequest", "id": f"{self.pfx}confirm-{_slug(case.id)}",
+                "meta": self.meta(f"{DIP}/StructureDefinition/dipper-confirmation-request"),
+                "status": "active", "intent": "order" if case.status == "handed_off" else "proposal",
+                "code": _cc(DIP_CS, "confirm-entry", "Confirm the entry point before repair"),
+                "subject": {"reference": loc}, "authoredOn": self.now.isoformat(), "requester": {"reference": device},
+                "reasonCode": [{"text": f"{top_label} holds {top_p:.0%} of the probability; confirm with a dye test, "
+                                        "smoke test or CCTV before repair."}],
+                "supportingInfo": [{"reference": issue}, {"reference": risk}],
+            })
+            self.add({
+                "resourceType": "Task", "id": f"{self.pfx}task-{_slug(case.id)}-confirm",
+                "meta": self.meta(f"{DIP}/StructureDefinition/dipper-field-task"),
+                "status": "requested", "intent": "order" if case.status == "handed_off" else "proposal",
+                "basedOn": [{"reference": conf}], "for": {"reference": loc}, "authoredOn": self.now.isoformat(),
+                "businessStatus": {"text": "Awaiting the utility"},
+                "description": f"Confirm that {top_label} is the entry point (dye test, smoke test or CCTV) before repair.",
+            })
+            targets.append(conf)
         advisories = [a for a in case.actions if a.type == "advisory"]
         lifts = [a for a in case.actions if a.type == "lift_advisory"]
         if view["advisory_suggested"] or advisories:
@@ -261,17 +284,14 @@ class _Builder:
                 "author": {"reference": device},
             })
             for k, a in enumerate(advisories):
+                text = a.payload.get("text") or advisory_text(self.g.name, self.g.city)
                 self.add({
                     "resourceType": "Communication", "id": f"{self.pfx}advisory-{_slug(case.id)}-{k + 1}",
                     "meta": self.meta(f"{DIP}/StructureDefinition/dipper-advisory"),
                     "status": "completed", "subject": {"reference": group}, "about": [{"reference": flag}, {"reference": risk}],
                     "sent": a.at.isoformat(), "sender": {"display": f"Approved by {_staff_ref(a.approver)}"},
-                    "payload": [
-                        {"contentString": f"Evite o contacto com a água e mantenha os cães fora da {self.g.name} até novo aviso. "
-                                          "Motivo: provável descarga de esgoto; ainda sem confirmação laboratorial."},
-                        {"contentString": f"Avoid contact with the water and keep dogs out of {self.g.name} until further notice. "
-                                          "Reason: probable sewage discharge; not yet confirmed by a lab."},
-                    ],
+                    # The wording the officer approved (kept with the approval): city language first, then English.
+                    "payload": [{"contentString": text[l]} for l in sorted(text, key=lambda l: l == "en")],
                 })
         self.add({
             "resourceType": "Provenance", "id": f"{self.pfx}prov-{_slug(case.id)}",

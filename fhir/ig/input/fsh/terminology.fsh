@@ -17,6 +17,7 @@ Description: "Local codes for citizen pollution signals, check types, case and r
 * #outfall-look "Look and smell at an outfall"
 * #ammonium-strip "Ammonium test strip"
 * #lab-ecoli "Laboratory E. coli sample"
+* #confirm-entry "Confirm the entry point before repair" "Dye test, smoke test or CCTV at the localized outfall. Dipper's localization is a probability, not proof."
 * #above-threshold "Above screening threshold"
 * #below-threshold "Below screening threshold"
 * #suspected-point-source "Suspected point-source pollution" "Pollution entering a stream at a single point (misconnection, leaking sewer, overflow or discharge)."

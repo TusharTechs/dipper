@@ -227,3 +227,9 @@ ol.steps h2 { margin-top: 10px; }
 .bench-legend .sw { width: 14px; height: 10px; border-radius: 3px; background: var(--chart-base); }
 .bench-legend .sw.hot { background: var(--chart-hot); }
 td.strong { font-weight: 700; }
+
+.recent { border: 1px solid var(--rule); border-radius: 10px; padding: 10px 12px; }
+.recent h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 4px; }
+.recent ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.recent .linkish { text-align: left; min-height: 36px; }
+.confirm-card { border-left: 4px solid var(--warn); }
