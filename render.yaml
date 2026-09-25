@@ -1,0 +1,22 @@
+# Render blueprint: the public demo of Dipper on Render's free plan.
+# Dashboard: New > Blueprint > this repository. Render builds the Dockerfile on its own servers.
+# Free plan: sleeps after 15 minutes without traffic, wakes on the next visit (about a minute), and its disk is
+# not persistent, so demo cases reset when it sleeps. Photo analysis stays off: no model keys are set.
+services:
+  - type: web
+    name: dipper
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/ready
+    autoDeploy: true
+    envVars:
+      - key: DIPPER_DEMO
+        value: "1"
+      # Render's load balancer sits in front: read the client address it forwards, only from private networks.
+      - key: DIPPER_PROXY_HOPS
+        value: "1"
+      - key: DIPPER_TRUSTED_PROXIES
+        value: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10
