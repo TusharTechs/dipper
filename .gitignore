@@ -17,3 +17,5 @@ web/dist/
 data/dipper.sqlite3*
 data/media/
 data/research-probes/
+certs/*
+!certs/none.pem

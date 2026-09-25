@@ -178,3 +178,14 @@ def test_provider_selection(monkeypatch):
     assert vision_provider() == "anthropic"
     monkeypatch.setenv("DIPPER_VISION_PROVIDER", "gemini")
     assert vision_provider() == "gemini"
+
+
+def test_gemini_network_failure_becomes_unavailable():
+    import httpx
+    from dipper_engine.photo import extract_features_gemini
+
+    def down(**kw):
+        raise httpx.ConnectError("certificate verify failed")
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=down))
+    with pytest.raises(PhotoModelUnavailable, match="unreachable"):
+        extract_features_gemini(b"x", client=client)

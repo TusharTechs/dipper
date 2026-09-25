@@ -9,3 +9,5 @@ fhir/.build
 web
 .claude
 data/media
+data/research-probes
+certs

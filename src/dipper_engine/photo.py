@@ -158,6 +158,7 @@ def _parse(text: str | None) -> PhotoFeatures:
 
 def extract_features_gemini(jpeg: bytes, client: Any | None = None, model: str = GEMINI_MODEL) -> PhotoFeatures:
     """Same contract as extract_features, using Google Gemini (google-genai SDK) with a JSON-schema response."""
+    import httpx
     from google import genai
     from google.genai import errors, types
 
@@ -181,6 +182,8 @@ def extract_features_gemini(jpeg: bytes, client: Any | None = None, model: str =
         raise PhotoModelUnavailable(f"photo model error {exc.code}") from exc
     except errors.APIError as exc:
         raise PhotoModelUnavailable("photo model error") from exc
+    except httpx.TransportError as exc:  # google-genai surfaces network and TLS failures as raw httpx errors
+        raise PhotoModelUnavailable("photo model unreachable") from exc
     feedback = getattr(response, "prompt_feedback", None)
     if feedback is not None and getattr(feedback, "block_reason", None):
         raise PhotoModelUnavailable("the photo model declined this image")

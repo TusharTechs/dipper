@@ -46,6 +46,17 @@ npm --prefix web install && npm --prefix web run dev   # UI at http://localhost:
 uv run python scripts/export_fhir_examples.py && ./fhir/validate.sh   # FHIR bundles + HL7 validator
 ```
 
+Docker (API only; the SQLite state lives in a named volume):
+
+```bash
+docker compose up --build api                                 # http://localhost:8000/docs
+DIPPER_EXTRA_CA=./certs/extra-ca.pem docker compose up --build api   # behind a TLS-inspecting proxy
+```
+
+`DIPPER_EXTRA_CA` points to a PEM bundle for a corporate proxy. It is used as a build secret and mounted
+read-only at runtime, and is never baked into the image. On macOS you can export the trusted roots with
+`security find-certificate -a -p /Library/Keychains/System.keychain > certs/extra-ca.pem` (`certs/` is gitignored).
+
 Demo through the API:
 
 ```bash

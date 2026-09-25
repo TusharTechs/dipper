@@ -1,18 +1,29 @@
-# Dipper local stack. `docker compose up api` is enough for the engine and API.
+# Dipper local stack. `docker compose up api` is enough for the engine and API (http://localhost:8000/docs).
+# Behind a TLS-inspecting proxy: DIPPER_EXTRA_CA=./certs/extra-ca.pem docker compose build api
 services:
   api:
-    build: .
+    build:
+      context: .
+      secrets: [extra_ca]
     ports: ["8000:8000"]
     environment:
       DIPPER_CORS: http://localhost:3000
+      DIPPER_DB: /app/state/dipper.sqlite3
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - dipper-state:/app/state
+      - ${DIPPER_EXTRA_CA:-./certs/none.pem}:/etc/dipper/extra-ca.pem:ro   # optional proxy CA, runtime only
   hapi:
     # Local FHIR R4 server. The public OAH sandbox has been unreachable since 23 Sep 2026 (hl7-eu/oah#8).
     image: hapiproject/hapi:v8.2.0-1
     ports: ["8080:8080"]
     environment:
       hapi.fhir.fhir_version: R4
+    profiles: ["fhir"]
   db:
-    # PostGIS for persistent cases (next step; the prototype API keeps cases in memory).
+    # PostGIS for multi-user deployments (the prototype uses a SQLite event store).
     image: postgis/postgis:16-3.4
     environment:
       POSTGRES_USER: dipper
@@ -20,3 +31,8 @@ services:
       POSTGRES_DB: dipper
     ports: ["5432:5432"]
     profiles: ["persistence"]
+secrets:
+  extra_ca:
+    file: ${DIPPER_EXTRA_CA:-./certs/none.pem}
+volumes:
+  dipper-state:
