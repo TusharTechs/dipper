@@ -58,6 +58,12 @@ def _narrative(res: dict[str, Any]) -> str:
     return f'<div xmlns="http://www.w3.org/1999/xhtml"><p><b>{rt}</b> {text}</p></div>'
 
 
+def _staff_ref(approver: str | None) -> str:
+    """'Rui Lopes (inspector, u_ab12) [demo]' -> 'inspector u_ab12': exports carry role and id, not names."""
+    m = re.search(r"\(([^)]*)\)", approver or "")
+    return m.group(1).replace(",", "") if m else "staff"
+
+
 def _slug(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9.-]+", "-", s).strip("-")[:60]
 
@@ -256,7 +262,7 @@ class _Builder:
                     "resourceType": "Communication", "id": f"{self.pfx}advisory-{_slug(case.id)}-{k + 1}",
                     "meta": self.meta(f"{DIP}/StructureDefinition/dipper-advisory"),
                     "status": "completed", "subject": {"reference": group}, "about": [{"reference": flag}, {"reference": risk}],
-                    "sent": a.at.isoformat(), "sender": {"display": f"Approved by {a.approver}"},
+                    "sent": a.at.isoformat(), "sender": {"display": f"Approved by {_staff_ref(a.approver)}"},
                     "payload": [
                         {"contentString": f"Evite o contacto com a água e mantenha os cães fora da {self.g.name} até novo aviso. "
                                           "Motivo: provável descarga de esgoto; ainda sem confirmação laboratorial."},

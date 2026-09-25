@@ -26,6 +26,8 @@ def main() -> None:
     cu.add_argument("--name", required=True)
     cu.add_argument("--role", required=True, choices=ROLES)
     sub.add_parser("purge-expired")
+    pm = sub.add_parser("purge-media", help="delete stored photos older than N days (retention policy)")
+    pm.add_argument("--days", type=int, required=True)
     args = ap.parse_args()
     path = Path(os.getenv("DIPPER_DB", str(ROOT / "data" / "dipper.sqlite3")))
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -34,6 +36,15 @@ def main() -> None:
         user, token = users.create(args.name, args.role)
         print(f"Created {user.name} ({user.role}), id {user.id}")
         print(f"Token (shown once, store it securely): {token}")
+    elif args.cmd == "purge-media":
+        import time
+        media = Path(os.getenv("DIPPER_MEDIA", str(ROOT / "data" / "media")))
+        cutoff, removed = time.time() - args.days * 86400, 0
+        for f in media.glob("*.jpg") if media.exists() else []:
+            if f.stat().st_mtime < cutoff:
+                f.unlink()
+                removed += 1
+        print(f"Removed {removed} photos older than {args.days} days from {media}")
     else:
         print(f"Removed {users.purge_expired()} expired tokens")
 

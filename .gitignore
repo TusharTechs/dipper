@@ -20,3 +20,4 @@ data/research-probes/
 certs/*
 !certs/none.pem
 data/eval/photos/
+data/dev.sqlite3*

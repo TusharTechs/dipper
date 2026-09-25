@@ -1,65 +1,98 @@
-import { useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import About from './About'
 import Bench from './Bench'
 import Citizen from './Citizen'
+import PublicMap from './PublicMap'
+import Queue from './Queue'
+import SignIn from './SignIn'
 import Workspace from './Workspace'
-import { api, type CaseSummary } from './api'
+import { api, session, type Config, type User } from './api'
 
-type Route = { page: 'ops' | 'queue' | 'citizen' | 'bench'; caseId: string | null }
+type Page = 'ops' | 'citizen' | 'public' | 'bench' | 'about'
+type Route = { page: Page; caseId: string | null }
 
 function parse(): Route {
-  const h = window.location.hash.replace(/^#\/?/, '')
-  const [page, id] = h.split('/')
-  if (page === 'citizen') return { page: 'citizen', caseId: null }
-  if (page === 'queue') return { page: 'queue', caseId: null }
-  if (page === 'bench') return { page: 'bench', caseId: null }
-  return { page: 'ops', caseId: id || null }
+  const [page, id] = window.location.hash.replace(/^#\/?/, '').split('/')
+  const known: Page[] = ['ops', 'citizen', 'public', 'bench', 'about']
+  return { page: known.includes(page as Page) ? (page as Page) : 'citizen', caseId: page === 'ops' && id ? decodeURIComponent(id) : null }
 }
 
-function Queue() {
-  const [cases, setCases] = useState<CaseSummary[] | null>(null)
-  useEffect(() => { api.cases().then(setCases).catch(() => setCases([])) }, [])
-  return (
-    <div className="queue">
-      <h1>Case queue</h1>
-      {!cases ? <p className="muted">Loading…</p> : cases.length === 0 ? <p className="muted">No cases yet. Start the scenario from Operations.</p> : (
-        <div className="tablewrap"><table>
-          <thead><tr><th>Case</th><th>Stream</th><th>Status</th><th>Leading explanation</th><th>Likely entry</th><th className="num">P(harmful)</th><th className="num">Signals</th></tr></thead>
-          <tbody>{cases.map((c) => (
-            <tr key={c.id} onClick={() => { window.location.hash = `#/ops/${c.id}` }} className="clickable">
-              <td><a href={`#/ops/${c.id}`}>{c.id}</a></td><td>{c.reach}, {c.city}</td>
-              <td><span className={`chip st-${c.status}`}>{c.status.replace('_', ' ')}</span></td>
-              <td>{c.leading_hypothesis.label} ({Math.round(c.leading_hypothesis.p * 100)}%)</td>
-              <td>{c.top_source.label} ({Math.round(c.top_source.p * 100)}%)</td>
-              <td className="num">{Math.round(c.p_harmful * 100)}%</td><td className="num">{c.signals}</td>
-            </tr>))}</tbody>
-        </table></div>
-      )}
-    </div>
-  )
-}
+// ---- screen-reader announcements shared by every page ----
+const AnnounceCtx = createContext<(msg: string) => void>(() => {})
+export const useAnnounce = () => useContext(AnnounceCtx)
+
+// ---- signed-in staff user ----
+interface AuthState { user: User | null; config: Config | null; signIn: (token: string, user: User) => void; signOut: () => void }
+const AuthCtx = createContext<AuthState>({ user: null, config: null, signIn: () => {}, signOut: () => {} })
+export const useAuth = () => useContext(AuthCtx)
 
 export default function App() {
   const [route, setRoute] = useState<Route>(parse)
+  const [message, setMessage] = useState('')
+  const [user, setUser] = useState<User | null>(null)
+  const [config, setConfig] = useState<Config | null>(null)
+
   useEffect(() => {
-    const on = () => setRoute(parse())
+    const on = () => { setRoute(parse()); document.getElementById('main')?.focus() }
     window.addEventListener('hashchange', on)
     return () => window.removeEventListener('hashchange', on)
   }, [])
+  useEffect(() => {
+    api.config().then(setConfig).catch(() => setConfig({ demo: false, roles: [], demo_reach: null, fhir_server: false }))
+    if (session.token) api.me().then(setUser).catch(() => setUser(null))
+  }, [])
+  useEffect(() => {
+    const titles: Record<Page, string> = { ops: 'Operations', citizen: 'Report', public: 'Advisories', bench: 'SourceBench', about: 'How it works' }
+    document.title = `${titles[route.page]} · Dipper`
+  }, [route.page])
+
+  const announce = useCallback((msg: string) => { setMessage(''); window.setTimeout(() => setMessage(msg), 50) }, [])
+  const auth: AuthState = {
+    user, config,
+    signIn: (token, u) => { session.set(token); setUser(u); announce(`Signed in as ${u.name}`) },
+    signOut: () => { session.set(null); setUser(null); announce('Signed out'); window.location.hash = '#/ops' },
+  }
+
+  const nav: { page: Page; label: string; href: string }[] = [
+    { page: 'citizen', label: 'Report', href: '#/citizen' },
+    { page: 'public', label: 'Advisories', href: '#/public' },
+    { page: 'ops', label: 'Operations', href: route.caseId ? `#/ops/${encodeURIComponent(route.caseId)}` : '#/ops' },
+    { page: 'bench', label: 'SourceBench', href: '#/bench' },
+    { page: 'about', label: 'How it works', href: '#/about' },
+  ]
+
+  let body: ReactNode
+  if (route.page === 'ops') body = !user ? <SignIn /> : route.caseId ? <Workspace caseId={route.caseId} /> : <Queue />
+  else if (route.page === 'citizen') body = <Citizen />
+  else if (route.page === 'public') body = <PublicMap />
+  else if (route.page === 'bench') body = <Bench />
+  else body = <About />
+
   return (
-    <div className="app">
-      <nav className="top">
-        <a className="brand" href="#/ops">Dipper</a>
-        <a className={route.page === 'ops' ? 'on' : ''} href={route.caseId ? `#/ops/${route.caseId}` : '#/ops'}>Operations</a>
-        <a className={route.page === 'queue' ? 'on' : ''} href="#/queue">Queue</a>
-        <a className={route.page === 'citizen' ? 'on' : ''} href="#/citizen">Citizen</a>
-        <a className={route.page === 'bench' ? 'on' : ''} href="#/bench">SourceBench</a>
-        <span className="spacer" />
-        <span className="muted small">Prototype · OneAquaHealth IEEE Hackathon 2026</span>
-      </nav>
-      {route.page === 'ops' && <Workspace caseId={route.caseId} onCase={(id) => { window.location.hash = `#/ops/${id}` }} />}
-      {route.page === 'queue' && <Queue />}
-      {route.page === 'citizen' && <Citizen />}
-      {route.page === 'bench' && <Bench />}
-    </div>
+    <AuthCtx.Provider value={auth}>
+      <AnnounceCtx.Provider value={announce}>
+        <a className="skip" href="#main">Skip to content</a>
+        <div className="app">
+          <header className="top" role="banner">
+            <a className="brand" href="#/citizen" aria-label="Dipper home">Dipper</a>
+            <nav aria-label="Main">
+              <ul>{nav.map((n) => (
+                <li key={n.page}><a href={n.href} aria-current={route.page === n.page ? 'page' : undefined}
+                  className={route.page === n.page ? 'on' : ''}>{n.label}</a></li>))}</ul>
+            </nav>
+            <span className="spacer" />
+            {config?.demo && <span className="demo-badge" title="Demo mode: scenario replay and demo sign-in are enabled">Demo</span>}
+            {user && <span className="who">{user.name}<span className="muted"> · {user.role.replace('_', ' ')}</span>
+              <button className="small" onClick={auth.signOut}>Sign out</button></span>}
+          </header>
+          <main id="main" tabIndex={-1}>{body}</main>
+          <footer className="foot">
+            <span>Map data © OpenStreetMap contributors · Weather: Open-Meteo (CC BY 4.0)</span>
+            <span>Prototype for the OneAquaHealth IEEE Global Hackathon 2026 · not affiliated with the OneAquaHealth consortium</span>
+          </footer>
+          <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{message}</div>
+        </div>
+      </AnnounceCtx.Provider>
+    </AuthCtx.Provider>
   )
 }

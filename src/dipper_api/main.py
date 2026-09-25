@@ -37,6 +37,7 @@ from pydantic import AwareDatetime, BaseModel, Field, StrictBool
 
 from dipper_engine import Case, Context, Observation, ReachGraph
 from dipper_engine.fhir import FhirPushError, case_bundle, push
+from dipper_engine.graph import haversine_m
 from dipper_engine.model import CHECK_TYPES, FEATURES, NONE, OUTSIDE
 from dipper_engine.oah import map_submission
 from dipper_engine.photo import PhotoModelUnavailable, conflicts, extract, redact, to_observation, vision_provider
@@ -313,7 +314,8 @@ def auth_me(user: User = Depends(require_staff)) -> dict:
 
 @app.get("/v1/config")
 def config() -> dict:
-    return {"demo": demo_enabled(), "roles": ROLES, "demo_reach": DEMO_REACH if demo_enabled() else None}
+    return {"demo": demo_enabled(), "roles": ROLES, "demo_reach": DEMO_REACH if demo_enabled() else None,
+            "fhir_server": bool(os.getenv("FHIR_BASE_URL"))}
 
 
 # ---- reaches ------------------------------------------------------------------------------
@@ -413,26 +415,52 @@ def post_signal_photo(
                 "ledger": [e.text for e in case.belief.ledger[first:]]}
 
 
-def _missions(case: Case, k: int = 3) -> list:
+MISSION_POOL = 12            # citizen checks considered for a mission
+WALK_COST_PER_KM = 0.08      # score given up per km a volunteer must walk (same units as the check score)
+
+
+def _missions(case: Case, k: int = MISSION_POOL) -> list:
     if case.status not in ("open", "localizing"):
         return []
     return recommend(case.belief, case.stakes, k=k, roles=("citizen",))
 
 
+def _mission_node(g, r) -> str:
+    return g.candidate(r.check.candidate_id).node_id if r.check.candidate_id else r.check.node_id
+
+
+def _pick_mission(case: Case, lat: float | None, lon: float | None):
+    """The most useful citizen check after charging for the walk from where the citizen is standing.
+    Without a location, the most useful check overall."""
+    pool = _missions(case)
+    if not pool:
+        return None, None
+    if lat is None or lon is None:
+        return pool[0], None
+    g = case.graph
+    walks = [haversine_m(lat, lon, g.nodes[_mission_node(g, r)].lat, g.nodes[_mission_node(g, r)].lon) for r in pool]
+    i = max(range(len(pool)), key=lambda j: pool[j].score - WALK_COST_PER_KM * walks[j] / 1000)
+    return pool[i], walks[i]
+
+
 @app.get("/v1/citizen/cases/{case_id}")
-def citizen_case(case_id: str) -> dict:
-    """What a citizen may see: status, their mission, what happened, any published advisory. No outfall ranking."""
+def citizen_case(case_id: str, lat: float | None = Query(None, ge=-90, le=90),
+                 lon: float | None = Query(None, ge=-180, le=180)) -> dict:
+    """What a citizen may see: status, their mission, what happened, any published advisory. No outfall ranking.
+    `lat`/`lon` (optional, never stored) let the mission favour a spot within a short walk."""
     with _lock:
         c = get_case(case_id)
         g = c.graph
         mission = None
-        m = _missions(c, 1)
-        if m:
-            r = m[0]
-            nid = g.candidate(r.check.candidate_id).node_id if r.check.candidate_id else r.check.node_id
+        r, walk = _pick_mission(c, lat, lon)
+        if r:
+            nid = _mission_node(g, r)
             nd = g.nodes[nid]
             where = g.candidate(r.check.candidate_id).label if r.check.candidate_id else g.node_label(nid)
             mission = {"key": r.check.key(), "type": r.check.check_type, "where": where, "lat": nd.lat, "lon": nd.lon,
+                       "km_above_outlet": round(nd.dist_to_outlet_m / 1000, 1),
+                       "outfall": g.candidate(r.check.candidate_id).label if r.check.candidate_id else None,
+                       "walk_m": round(walk) if walk is not None else None,
                        "if_clean": r.if_negative.zone, "if_polluted": r.if_positive.zone}
         advisories = [a for a in c.actions if a.type == "advisory"]
         return {"id": c.id, "reach": g.name, "status": c.status,

@@ -14,6 +14,8 @@ interface Props {
   picked?: { lat: number; lon: number } | null
   onPick?: (lat: number, lon: number) => void
   height?: number | string
+  label?: string
+  stretches?: [number, number][][]
 }
 
 function layersData(reach: GeoJSON, view: CaseView | null | undefined, target: Recommendation | null | undefined) {
@@ -41,7 +43,7 @@ function layersData(reach: GeoJSON, view: CaseView | null | undefined, target: R
   return { edges, cands, places, obs, tgt }
 }
 
-export default function CaseMap({ reach, view, target, picked, onPick, height = '100%' }: Props) {
+export default function CaseMap({ reach, view, target, picked, onPick, height = '100%', label, stretches }: Props) {
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<MLMap | null>(null)
   const ready = useRef(false)
@@ -54,13 +56,15 @@ export default function CaseMap({ reach, view, target, picked, onPick, height = 
     const m = new MLMap({ container: el.current, style: STYLE, center: [-8.41, 40.22], zoom: 13, attributionControl: { compact: true } })
     m.addControl(new NavigationControl({ showCompass: false }), 'top-right')
     m.on('load', () => {
-      for (const id of ['edges', 'cands', 'places', 'obs', 'tgt', 'pick']) m.addSource(id, { type: 'geojson', data: empty() })
+      for (const id of ['edges', 'cands', 'places', 'obs', 'tgt', 'pick', 'stretch']) m.addSource(id, { type: 'geojson', data: empty() })
       m.addLayer({ id: 'edges-casing', type: 'line', source: 'edges', paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': 0.9 }, layout: { 'line-cap': 'round', 'line-join': 'round' } })
       m.addLayer({ id: 'edges', type: 'line', source: 'edges', filter: ['!=', ['get', 'culvert'], true],
         paint: { 'line-width': 6, 'line-color': ['interpolate', ['linear'], ['get', 'p'], 0, '#6F9EA3', 0.25, '#E3B04B', 0.6, '#D9731F', 0.9, '#B3261E'] },
         layout: { 'line-cap': 'round', 'line-join': 'round' } })
       m.addLayer({ id: 'edges-culvert', type: 'line', source: 'edges', filter: ['==', ['get', 'culvert'], true],
         paint: { 'line-width': 4, 'line-dasharray': [1, 1.2], 'line-color': ['interpolate', ['linear'], ['get', 'p'], 0, '#6F9EA3', 0.25, '#E3B04B', 0.6, '#D9731F', 0.9, '#B3261E'] } })
+      m.addLayer({ id: 'stretch', type: 'line', source: 'stretch', paint: { 'line-color': '#B3261E', 'line-width': 9, 'line-opacity': 0.55 },
+        layout: { 'line-cap': 'round', 'line-join': 'round' } })
       m.addLayer({ id: 'places', type: 'circle', source: 'places', paint: { 'circle-radius': 6, 'circle-color': '#6B5CA5', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } })
       m.addLayer({ id: 'places-label', type: 'symbol', source: 'places', layout: { 'text-field': ['get', 'label'], 'text-size': 11, 'text-offset': [0, 1.3], 'text-font': ['Noto Sans Regular'] },
         paint: { 'text-color': '#4B3F80', 'text-halo-color': '#fff', 'text-halo-width': 1.5 } })
@@ -86,17 +90,27 @@ export default function CaseMap({ reach, view, target, picked, onPick, height = 
   // Fit to the reach once it is known.
   useEffect(() => {
     const m = map.current
-    if (!m || !reach) return
+    if (!m) return
+    const pts0 = stretches?.flat() ?? []
+    if (!reach && pts0.length) {
+      const b = pts0.reduce((acc, p) => acc.extend(p), new LngLatBounds(pts0[0], pts0[0]))
+      m.fitBounds(b, { padding: 50, duration: 0 })
+      return
+    }
+    if (!reach) return
     const pts = reach.features.filter((f) => f.properties.role === 'node').map((f) => f.geometry.coordinates as [number, number])
     if (!pts.length) return
     const b = pts.reduce((acc, p) => acc.extend(p), new LngLatBounds(pts[0], pts[0]))
     m.fitBounds(b, { padding: 50, duration: 0 })
-  }, [reach])
+  }, [reach, stretches])
 
   useEffect(() => {
     const m = map.current
-    if (!m || !reach) return
+    if (!m) return
     const apply = () => {
+      ;(m.getSource('stretch') as GeoJSONSource).setData({ type: 'FeatureCollection', features: (stretches ?? []).map((c) => (
+        { type: 'Feature', geometry: { type: 'LineString', coordinates: c }, properties: {} })) } as any)
+      if (!reach) return
       const d = layersData(reach, view, target)
       ;(m.getSource('edges') as GeoJSONSource).setData(d.edges as any)
       ;(m.getSource('cands') as GeoJSONSource).setData(d.cands as any)
@@ -109,7 +123,7 @@ export default function CaseMap({ reach, view, target, picked, onPick, height = 
     }
     if (ready.current) apply()
     else pending.current = apply
-  }, [reach, view, target, picked])
+  }, [reach, view, target, picked, stretches])
 
-  return <div ref={el} className="map" style={{ height }} aria-label="Map of the stream with source probabilities" />
+  return <div ref={el} className="map" style={{ height }} role="region" aria-label={label ?? 'Map of the stream'} />
 }

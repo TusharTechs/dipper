@@ -1,0 +1,10 @@
+{
+  "name": "Dipper: urban stream pollution",
+  "short_name": "Dipper",
+  "description": "Report pollution in urban streams and help find its source.",
+  "start_url": "/#/citizen",
+  "display": "standalone",
+  "background_color": "#F2F5F3",
+  "theme_color": "#0E6B6B",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

@@ -16,6 +16,8 @@ from dipper_engine.graph import from_osm
 from dipper_engine.osm import fetch_places, fetch_stream
 
 OUT = Path(__file__).resolve().parents[1] / "data" / "reaches"
+TZ = {"Coimbra": "Europe/Lisbon", "Oslo": "Europe/Oslo", "Ghent": "Europe/Brussels", "Toulouse": "Europe/Paris",
+      "Benevento": "Europe/Rome", "Heraklion": "Europe/Athens"}
 
 # (city, OSM name, bbox south,west,north,east, n_candidates or None for ~1 per 130 m)
 STREAMS = [
@@ -51,7 +53,8 @@ def main() -> None:
             for p in places:
                 p["weight"] = PLACE_WEIGHTS.get(p["kind"], 0.5)
             g.attach_places(places)
-            g.meta |= {"candidates": "synthetic, 1 per ~130 m unless set", "fetched": time.strftime("%Y-%m-%d")}
+            g.meta |= {"candidates": "synthetic, 1 per ~130 m unless set", "fetched": time.strftime("%Y-%m-%d"),
+                       "tz": TZ.get(city, "UTC")}
             path = OUT / f"{slug(city)}-{slug(name)}.geojson"
             path.write_text(json.dumps(g.to_geojson()))
             print(f"{name}: {len(g.nodes)} nodes, {g.total_length_m:.0f} m, {len(g.access_nodes)} access, "

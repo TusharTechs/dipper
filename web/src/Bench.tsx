@@ -22,7 +22,7 @@ function HBar({ rows, value, format, max, title, note }: {
   return (
     <figure className="bench-chart">
       <figcaption><strong>{title}</strong><span className="muted small">{note}</span></figcaption>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={title}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={`${title}: ${rows.map((r) => `${SHORT[r.policy]} ${format(value(r))}`).join(', ')}`}>
         {[0.25, 0.5, 0.75, 1].map((t) => (
           <line key={t} x1={x(max * t)} x2={x(max * t)} y1={0} y2={H} className="grid" />
         ))}
@@ -55,11 +55,11 @@ export default function Bench() {
   const [err, setErr] = useState<string | null>(null)
   useEffect(() => { fetch('/api/v1/sim/results').then((r) => r.ok ? r.json() : Promise.reject(r.statusText)).then(setRes).catch((e) => setErr(String(e))) }, [])
   const all = useMemo(() => ORDER.map((p) => res?.summary.find((r) => r.network === 'ALL' && r.policy === p)).filter(Boolean) as Row[], [res])
-  if (err) return <div className="queue"><p className="error">Could not load results: {err}</p></div>
-  if (!res) return <div className="queue"><p className="muted">Loading…</p></div>
+  if (err) return <div className="page"><p className="error">Could not load results: {err}</p></div>
+  if (!res) return <div className="page"><p className="muted">Loading…</p></div>
   const nets = res.networks
   return (
-    <div className="queue bench">
+    <div className="page bench">
       <div className="banner">SIMULATION · synthetic incidents on real OneAquaHealth stream networks · not field performance</div>
       <h1>SourceBench: how fast does each strategy find the source?</h1>
       <p className="muted">{nets.length} networks ({nets.join(', ')}) · {res.args.trials} trials each · same true source for every strategy · budget 25 checks · simulated world {res.args.misspec}× noisier than the model, with bursty discharges.</p>
@@ -72,10 +72,11 @@ export default function Bench() {
       <p className="bench-legend"><span><i className="sw hot" />Dipper</span><span><i className="sw" />baseline strategies</span>
         <span className="muted small">Greedy information maximizes bits learned per check and ignores cost. Bank walk checks every outfall from the downstream end.</span></p>
       <h2>By network</h2>
-      <div className="tablewrap"><table>
-        <thead><tr><th>Network</th>{ORDER.map((p) => <th key={p} className="num">{NAME[p].split(' (')[0].split(',')[0]}</th>)}</tr></thead>
+      <div className="tablewrap" tabIndex={0} role="region" aria-label="Results by network"><table>
+        <caption className="sr-only">Share of trials that localized the correct outfall, and mean cost, per network and strategy</caption>
+        <thead><tr><th scope="col">Network</th>{ORDER.map((p) => <th scope="col" key={p} className="num">{NAME[p].split(' (')[0].split(',')[0]}</th>)}</tr></thead>
         <tbody>{nets.map((n) => (
-          <tr key={n}><td>{n}</td>{ORDER.map((p) => { const r = res.summary.find((x) => x.network === n && x.policy === p)
+          <tr key={n}><th scope="row">{n}</th>{ORDER.map((p) => { const r = res.summary.find((x) => x.network === n && x.policy === p)
             return <td key={p} className={p === 'voi' ? 'num strong' : 'num'}>{r ? `${Math.round(r.success_rate * 100)}% · ${r.mean_cost.toFixed(2)}` : '–'}</td> })}</tr>))}
         </tbody>
       </table></div>

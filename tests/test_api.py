@@ -90,6 +90,36 @@ def test_citizen_flow_uses_safe_endpoints_and_missions_only(api):
     assert r2["case_id"] == cid
 
 
+def test_citizen_mission_prefers_a_spot_within_walking_distance(api):
+    main, client = api
+    g = main.reach("coimbra-ribeira-de-coselhas")
+    nd = sorted((n for n in g.nodes.values() if n.access), key=lambda n: n.dist_to_outlet_m)[len(g.nodes) // 20]
+    cid = client.post("/v1/signals", json={"reach_id": g_id(), "lat": nd.lat, "lon": nd.lon,
+                                           "features": {"grey": True, "sewage_odour": True}}).json()["case_id"]
+    far = client.get(f"/v1/citizen/cases/{cid}").json()["mission"]
+    near = client.get(f"/v1/citizen/cases/{cid}", params={"lat": nd.lat, "lon": nd.lon}).json()["mission"]
+    assert far["walk_m"] is None and near["walk_m"] is not None
+    pool = main._missions(main._cases[cid])
+    walk = lambda r: main.haversine_m(nd.lat, nd.lon, g.nodes[main._mission_node(g, r)].lat, g.nodes[main._mission_node(g, r)].lon)
+    best = max(r.score - main.WALK_COST_PER_KM * walk(r) / 1000 for r in pool)
+    chosen = next(r for r in pool if r.check.key() == near["key"])
+    assert chosen.score - main.WALK_COST_PER_KM * walk(chosen) / 1000 == pytest.approx(best)
+    assert near["walk_m"] <= far_walk(main, g, nd, pool, far["key"]) + 1
+    # the nearby mission is still one the citizen may answer
+    ok = client.post(f"/v1/citizen/cases/{cid}/checks", json={"mission_key": near["key"], "positive": False})
+    assert ok.status_code == 200
+
+
+def far_walk(main, g, nd, pool, key):
+    r = next(r for r in pool if r.check.key() == key)
+    n = g.nodes[main._mission_node(g, r)]
+    return main.haversine_m(nd.lat, nd.lon, n.lat, n.lon)
+
+
+def g_id():
+    return "coimbra-ribeira-de-coselhas"
+
+
 def test_signal_validation(api):
     main, client = api
     nd = _node(main)

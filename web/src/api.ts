@@ -1,6 +1,6 @@
-// Typed client for the Dipper API (proxied at /api in dev).
+// Typed client for the Dipper API. Same origin in production (/api), proxied by Vite in development.
 
-export type Role = 'citizen' | 'trained' | 'inspector'
+export type Role = 'citizen' | 'trained' | 'inspector' | 'public_health' | 'admin'
 export type CheckType = 'instream_look' | 'outfall_look' | 'ammonium_strip' | 'lab_ecoli'
 
 export interface Hypothesis { id: string; label: string; p: number; harmful: boolean }
@@ -12,79 +12,130 @@ export interface LedgerEntry {
   top_source_after: [string, number]
 }
 export interface ObservationView {
-  kind: string; positive: boolean; role: Role; tier: string; lat: number; lon: number; where: string
+  kind: string; positive: boolean; role: string; tier: string; lat: number; lon: number; where: string
   observed_at: string | null; features: string[]
 }
 export interface Branch { probability: number; p_harmful: number; top_source: [string, number]; zone: string; zone_mass: number; advise: boolean }
 export interface Recommendation {
-  check: { check_type: CheckType; role: Role; node_id: string | null; candidate_id: string | null; key: string }
+  check: { check_type: CheckType; role: string; node_id: string | null; candidate_id: string | null; key: string }
   label: string; score: number; evsi: number; search_bits: number; cost: number; delay_h: number; p_positive: number
   if_positive: Branch; if_negative: Branch; changes_decision: boolean; reason: string
 }
 export interface Exposure { id: string; kind: string; label: string; lat: number; lon: number; p_affected: number; minutes_from_likely_source: number | null }
+export interface Action { type: string; at: string; approver: string | null; payload: Record<string, unknown> }
+export interface AdvisoryDraft {
+  tiers: { observed: string; inferred: string; possible_risk: string; needs_confirmation: string }
+  text: { en: string; pt: string }; suggested: boolean
+}
 export interface CaseView {
-  id: string; reach: string; city: string; status: string; opened_at: string
+  id: string; reach: string; city: string; status: string; opened_at: string; simulated?: boolean
   context: { regime: string; summary: string; rain_48h_mm: number | null; tmax_c: number | null; dry_days: number | null }
   hypotheses: Hypothesis[]; p_harmful: number; advisory_suggested: boolean; stakes: number
   top_source: { id: string; label: string; p: number }; outside_or_unmapped: number; diffuse: number
   sources: Source[]; ribbon: RibbonPoint[]; ledger: LedgerEntry[]; observations: ObservationView[]
-  unknowns: string[]; exposure: Exposure[]; recommendations: Recommendation[]
-  actions: { type: string; at: string; approver: string | null; payload: Record<string, unknown> }[]
-  model: { version: string; note: string }
-  scenario?: { label: string }
+  unknowns: string[]; exposure: Exposure[]; recommendations: Recommendation[]; actions: Action[]
+  advisory_draft: AdvisoryDraft; model: { version: string; note: string }
 }
 export interface CaseSummary {
-  id: string; reach: string; city: string; status: string; opened_at: string
+  id: string; reach: string; city: string; status: string; opened_at: string; last_activity: string; simulated: boolean
   leading_hypothesis: Hypothesis; top_source: { id: string; label: string; p: number }; p_harmful: number; signals: number
 }
+export interface CitizenCase {
+  id: string; reach: string; status: string; reports: number; checks: number
+  mission: { key: string; type: CheckType; where: string; lat: number; lon: number; km_above_outlet: number; outfall: string | null
+    walk_m: number | null; if_clean: string; if_polluted: string } | null
+  advisory: { en: string; pt: string } | null; history: { at: string; type: string }[]
+}
+export interface PublicAdvisory {
+  case: string; reach: string; city: string; issued_at: string; text: { en: string; pt: string }
+  stretch: { type: 'LineString'; coordinates: [number, number][] }; simulated: boolean
+}
+export interface HistoryEvent { seq: number; at: string; type: 'observation' | 'action'; payload: Record<string, any> }
 export interface ReachInfo { id: string; name: string; city: string; length_m: number; candidates: number; places: number }
-export type GeoJSON = { type: 'FeatureCollection'; properties: Record<string, unknown>; features: GeoFeature[] }
-export type GeoFeature = { type: 'Feature'; geometry: { type: string; coordinates: any }; properties: Record<string, any> }
-
-async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(`/api${path}`, { headers: { 'content-type': 'application/json' }, ...init })
-  if (!r.ok) {
-    let detail = r.statusText
-    try { detail = (await r.json()).detail ?? detail } catch { /* not JSON */ }
-    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail))
-  }
-  return r.json() as Promise<T>
-}
-
-export const api = {
-  reaches: () => req<ReachInfo[]>('/v1/reaches'),
-  reach: (id: string) => req<GeoJSON>(`/v1/reaches/${encodeURIComponent(id)}`),
-  cases: () => req<CaseSummary[]>('/v1/cases'),
-  case: (id: string) => req<CaseView>(`/v1/cases/${id}`),
-  recommendations: (id: string, roles: Role[], k = 3) =>
-    req<Recommendation[]>(`/v1/cases/${id}/recommendations?k=${k}&roles=${roles.join(',')}`),
-  startScenario: (wet: boolean) => req<CaseView>(`/v1/scenarios/c014?wet=${wet}`, { method: 'POST' }),
-  autostep: (id: string) => req<{ performed: Recommendation; result: string; case: CaseView }>(`/v1/scenarios/${id}/autostep`, { method: 'POST' }),
-  check: (id: string, body: { check_type: CheckType; positive: boolean; node_id?: string | null; candidate_id?: string | null; role: Role; observer?: string }) =>
-    req<CaseView>(`/v1/cases/${id}/checks`, { method: 'POST', body: JSON.stringify(body) }),
-  action: (id: string, type: string, approver: string | null, payload: Record<string, unknown> = {}) =>
-    req<CaseView>(`/v1/cases/${id}/actions`, { method: 'POST', body: JSON.stringify({ type, approver, payload }) }),
-  signal: (body: { reach_id: string; lat: number; lon: number; features: Record<string, boolean>; role: Role; observer?: string; case_id?: string }) =>
-    req<{ case_id: string; snapped_node: string; snap_distance_m: number; status: string }>('/v1/signals', { method: 'POST', body: JSON.stringify(body) }),
-}
-
+export interface User { id: string; name: string; role: Role; demo: boolean }
+export interface Config { demo: boolean; roles: Role[]; demo_reach: string | null; fhir_server: boolean }
 export interface PhotoResult {
   case_id: string; status: string
   photo: { status: 'analysed' | 'not_analysed'; reason?: string; faces_blurred: number; note?: string
     conflicts?: { feature: string; citizen_said: boolean; photo_confidence: number; prompt: string }[] }
 }
+export type GeoJSON = { type: 'FeatureCollection'; properties: Record<string, unknown>; features: GeoFeature[] }
+export type GeoFeature = { type: 'Feature'; geometry: { type: string; coordinates: any }; properties: Record<string, any> }
 
-export async function signalPhoto(file: File, body: { reach_id: string; lat: number; lon: number; features: Record<string, boolean>; observer?: string }) {
-  const fd = new FormData()
-  fd.append('photo', file)
-  fd.append('reach_id', body.reach_id)
-  fd.append('lat', String(body.lat))
-  fd.append('lon', String(body.lon))
-  fd.append('features', JSON.stringify(body.features))
-  if (body.observer) fd.append('observer', body.observer)
-  const r = await fetch('/api/v1/signals/photo', { method: 'POST', body: fd })
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail ?? r.statusText)
-  return r.json() as Promise<PhotoResult>
+// ---- session (per-viewer convenience; the server is the source of truth) ----
+const TOKEN_KEY = 'dipper.token'
+export const session = {
+  get token(): string | null { try { return sessionStorage.getItem(TOKEN_KEY) } catch { return null } },
+  set(token: string | null) { try { token ? sessionStorage.setItem(TOKEN_KEY, token) : sessionStorage.removeItem(TOKEN_KEY) } catch { /* private mode */ } },
 }
 
-export const REACH_ID = 'coimbra-ribeira-de-coselhas'
+/** A random id kept on this device only. The server turns it into a keyed pseudonym; it is never a name or email. */
+export function deviceId(): string {
+  const key = 'dipper.device'
+  try {
+    let v = localStorage.getItem(key)
+    if (!v) { v = 'd-' + crypto.randomUUID().replace(/-/g, '').slice(0, 20); localStorage.setItem(key, v) }
+    return v
+  } catch { return 'd-ephemeral' }
+}
+
+export class ApiError extends Error {
+  status: number
+  constructor(status: number, message: string) { super(message); this.status = status }
+}
+
+async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers: Record<string, string> = { ...(init.body && !(init.body instanceof FormData) ? { 'content-type': 'application/json' } : {}) }
+  const t = session.token
+  if (t) headers.authorization = `Bearer ${t}`
+  const r = await fetch(`/api${path}`, { ...init, headers: { ...headers, ...(init.headers as Record<string, string> ?? {}) } })
+  if (!r.ok) {
+    let detail = r.statusText
+    try { const j = await r.json(); detail = typeof j.detail === 'string' ? j.detail : Array.isArray(j.detail) ? j.detail.map((d: any) => d.msg).join('; ') : detail } catch { /* not JSON */ }
+    if (r.status === 401) session.set(null)
+    throw new ApiError(r.status, detail)
+  }
+  return r.json() as Promise<T>
+}
+const enc = encodeURIComponent
+const post = (body?: unknown): RequestInit => ({ method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) })
+
+export const api = {
+  config: () => req<Config>('/v1/config'),
+  me: () => req<User>('/v1/auth/me'),
+  demoSignIn: (role: 'inspector' | 'public_health' | 'admin') => req<{ token: string; user: User }>('/v1/auth/demo', post({ role })),
+  reaches: () => req<ReachInfo[]>('/v1/reaches'),
+  reach: (id: string) => req<GeoJSON>(`/v1/reaches/${enc(id)}`),
+  cases: () => req<CaseSummary[]>('/v1/cases'),
+  case: (id: string) => req<CaseView>(`/v1/cases/${enc(id)}`),
+  history: (id: string) => req<HistoryEvent[]>(`/v1/cases/${enc(id)}/history`),
+  fhir: (id: string) => req<any>(`/v1/cases/${enc(id)}/fhir`),
+  fhirPush: (id: string) => req<{ server: string; resources: number; created: number; updated: number }>(`/v1/cases/${enc(id)}/fhir/push`, post()),
+  startScenario: (wet: boolean) => req<CaseView>(`/v1/scenarios/c014?wet=${wet}`, post()),
+  autostep: (id: string) => req<{ performed: Recommendation; result: string; case: CaseView }>(`/v1/scenarios/${enc(id)}/autostep`, post()),
+  check: (id: string, body: { check_type: CheckType; positive: boolean; node_id?: string | null; candidate_id?: string | null }) =>
+    req<CaseView>(`/v1/cases/${enc(id)}/checks`, post(body)),
+  action: (id: string, type: string, note?: string) => req<CaseView>(`/v1/cases/${enc(id)}/actions`, post({ type, note })),
+  signal: (body: { reach_id: string; lat: number; lon: number; features: Record<string, boolean> }) =>
+    req<{ case_id: string; snap_distance_m: number; status: string }>('/v1/signals', post({ ...body, observer: deviceId() })),
+  citizenCase: (id: string, near?: { lat: number; lon: number } | null) =>
+    req<CitizenCase>(`/v1/citizen/cases/${enc(id)}${near ? `?lat=${near.lat.toFixed(5)}&lon=${near.lon.toFixed(5)}` : ''}`),
+  citizenCheck: (id: string, mission_key: string, positive: boolean) =>
+    req<{ status: string; search_narrowed_bits: number; now_most_likely_in: string }>(`/v1/citizen/cases/${enc(id)}/checks`,
+      post({ mission_key, positive, observer: deviceId() })),
+  advisories: () => req<PublicAdvisory[]>('/v1/public/advisories'),
+  simResults: () => req<any>('/v1/sim/results'),
+  signalPhoto: (file: File, body: { reach_id: string; lat: number; lon: number; features: Record<string, boolean> }) => {
+    const fd = new FormData()
+    fd.append('photo', file); fd.append('reach_id', body.reach_id); fd.append('lat', String(body.lat)); fd.append('lon', String(body.lon))
+    fd.append('features', JSON.stringify(body.features)); fd.append('observer', deviceId())
+    return req<PhotoResult>('/v1/signals/photo', { method: 'POST', body: fd })
+  },
+}
+
+export const DEFAULT_REACH = 'coimbra-ribeira-de-coselhas'
+export const pct = (p: number) => `${Math.round(p * 100)}%`
+export const STATUS_LABEL: Record<string, string> = {
+  open: 'Open', localizing: 'Searching', localized: 'Source localized', handed_off: 'Handed to utility',
+  fixed: 'Fixed', verified: 'Fix verified', closed: 'Closed', dismissed: 'Dismissed',
+}
