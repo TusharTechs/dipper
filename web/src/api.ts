@@ -68,4 +68,23 @@ export const api = {
     req<{ case_id: string; snapped_node: string; snap_distance_m: number; status: string }>('/v1/signals', { method: 'POST', body: JSON.stringify(body) }),
 }
 
+export interface PhotoResult {
+  case_id: string; status: string
+  photo: { status: 'analysed' | 'not_analysed'; reason?: string; faces_blurred: number; note?: string
+    conflicts?: { feature: string; citizen_said: boolean; photo_confidence: number; prompt: string }[] }
+}
+
+export async function signalPhoto(file: File, body: { reach_id: string; lat: number; lon: number; features: Record<string, boolean>; observer?: string }) {
+  const fd = new FormData()
+  fd.append('photo', file)
+  fd.append('reach_id', body.reach_id)
+  fd.append('lat', String(body.lat))
+  fd.append('lon', String(body.lon))
+  fd.append('features', JSON.stringify(body.features))
+  if (body.observer) fd.append('observer', body.observer)
+  const r = await fetch('/api/v1/signals/photo', { method: 'POST', body: fd })
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail ?? r.statusText)
+  return r.json() as Promise<PhotoResult>
+}
+
 export const REACH_ID = 'coimbra-ribeira-de-coselhas'

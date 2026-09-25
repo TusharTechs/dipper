@@ -7,7 +7,7 @@ Every parameter lives in `src/dipper_engine/model.py` (`ModelParams`).
 **What it does not do.**
 - Diagnose disease or confirm pathogens.
 - Predict illness.
-- Read photos. Photo features are a planned, separate, down-weighted input.
+- Let a model's reading of a photo override a person. Photo features are a separate, down-weighted observer.
 - Replace the person who approves advisories and utility handoffs.
 
 ## State space
@@ -30,6 +30,7 @@ reach, or an unmapped entry).
 |---|---|---|
 | Look and smell at the stream (and citizen reports) | P(pos) = pres·det + (1 − pres·det)·fa; det = role sensitivity × visibility(h) | US illicit-discharge screening uses colour, odour, turbidity and sheen as indicators (EPA IDDE factsheet). Role sensitivity and false-alarm rates are expert starting values, with trained volunteers set above new ones. |
 | Report features (grey, odour, foam, …) | Mixture: true sighting uses P(f\|h); false alarm uses base rates. Tempered by role trust. | Outfall Safari visual indicators and IDDE indicator tables. Values are expert-set. |
+| Photo features (`photo_model` observer) | Same as a look, with sensitivity 0.60, false alarm 0.15 and feature trust 0.4, lower than any person. A feature counts when confidence is ≥ 0.6. It is tempered with nearby reports, since it shows the same scene. | A weak, correlated observer by design. Not yet evaluated on labelled outfall photos. |
 | Outfall look | Positive if the outfall is the active source, or if a background outfall is dirty (6%) | Outfall Safari experience that many outfalls show some pollution |
 | Ammonium strip | P(high \| foul present) = 0.85; false positive 0.08 | Ammonium tracked faecal indicators and a human DNA marker (R² 0.49–0.88) in Dublin's Elm Park stream (IJERPH 2021) |
 | Lab E. coli | Sensitivity 0.95 for sewage; false positive 0.05; 24 h delay | Standard culture methods; the delay reflects typical turnaround |
@@ -70,6 +71,7 @@ Relative costs:
 | Check | Cost |
 |---|---|
 | Citizen look | 0.05 |
+| Photo features (`photo_model` observer) | Same as a look, with sensitivity 0.60, false alarm 0.15 and feature trust 0.4, lower than any person. A feature counts when confidence is ≥ 0.6. It is tempered with nearby reports, since it shows the same scene. | A weak, correlated observer by design. Not yet evaluated on labelled outfall photos. |
 | Outfall look | 0.06 |
 | Ammonium strip | 0.12 |
 | Lab sample | 0.50 |

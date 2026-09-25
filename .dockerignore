@@ -8,3 +8,4 @@ data/sourcebench_stdout.txt
 fhir/.build
 web
 .claude
+data/media

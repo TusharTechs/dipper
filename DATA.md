@@ -33,5 +33,5 @@ pauses between queries.
 ## Personal data
 
 - Observers are pseudonymous ids. Never store names, emails or phone numbers.
-- Photos will have EXIF stripped and faces and number plates blurred before storage (not yet implemented).
+- Photos are re-encoded without EXIF (including GPS) and detected faces are blurred before they are stored or sent to the vision model. If face detection is unavailable, the photo is not sent. Number plates are not yet redacted. Stored photos are in `data/media/` (gitignored).
 - Suspected outfalls are never linked to addresses in public outputs.

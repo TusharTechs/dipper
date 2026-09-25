@@ -12,12 +12,15 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Query
+import hashlib
+
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from dipper_engine import Case, Context, Observation, ReachGraph
 from dipper_engine.fhir import case_bundle
+from dipper_engine.photo import PhotoModelUnavailable, conflicts, extract_features, redact, to_observation
 from dipper_engine.model import CHECK_TYPES, FEATURES, ROLES
 from dipper_engine.scenario import TRUE_SOURCE, build_case, truth_result
 from dipper_engine.sim import load_networks, run_trial, summarise
@@ -190,24 +193,78 @@ def case_fhir(case_id: str) -> dict:
     return case_bundle(get_case(case_id))
 
 
-@app.post("/v1/signals")
-def post_signal(body: SignalIn) -> dict:
-    unknown = set(body.features) - set(FEATURES)
+def _record_report(reach_id: str, lat: float, lon: float, features: dict[str, bool], role: str,
+                   observer: str | None, observed_at: datetime | None, case_id: str | None) -> tuple[Case, str, float]:
+    unknown = set(features) - set(FEATURES)
     if unknown:
         raise HTTPException(422, f"unknown features {sorted(unknown)}")
-    g = reach(body.reach_id)
-    node, dist = g.nearest_node(body.lat, body.lon)
+    g = reach(reach_id)
+    node, dist = g.nearest_node(lat, lon)
     if dist > 150:
         raise HTTPException(422, f"location is {dist:.0f} m from the mapped stream")
-    case = get_case(body.case_id) if body.case_id else next(
-        (c for c in _cases.values() if _reach_of.get(c.id) == body.reach_id and c.status in ("open", "localizing", "localized")),
-        None) or _new_case(body.reach_id, body.observed_at, None)
-    obs = Observation("report", True, node_id=node, role=body.role, features=tuple(body.features.items()),
-                      observed_at=body.observed_at or datetime.now(timezone.utc), observer=body.observer)
+    case = get_case(case_id) if case_id else next(
+        (c for c in _cases.values() if _reach_of.get(c.id) == reach_id and c.status in ("open", "localizing", "localized")),
+        None) or _new_case(reach_id, observed_at, None)
+    obs = Observation("report", True, node_id=node, role=role, features=tuple(features.items()),
+                      observed_at=observed_at or datetime.now(timezone.utc), observer=observer)
     case.add(obs)
     store.add_observation(case.id, obs)
+    return case, node, dist
+
+
+@app.post("/v1/signals")
+def post_signal(body: SignalIn) -> dict:
+    case, node, dist = _record_report(body.reach_id, body.lat, body.lon, body.features, body.role, body.observer,
+                                      body.observed_at, body.case_id)
     return {"case_id": case.id, "snapped_node": node, "snap_distance_m": round(dist, 1),
             "ledger_entry": case.belief.ledger[-1].as_dict(), "status": case.status}
+
+
+MEDIA_DIR = ROOT / "data" / "media"
+
+
+@app.post("/v1/signals/photo")
+async def post_signal_photo(
+    photo: UploadFile = File(...), reach_id: str = Form(...), lat: float = Form(...), lon: float = Form(...),
+    features: str = Form("{}", description="JSON object of citizen answers, e.g. {\"grey\": true}"),
+    observer: str | None = Form(None), case_id: str | None = Form(None),
+) -> dict:
+    """Citizen report with a photo. The citizen's answers are always recorded. The photo is redacted
+    (EXIF stripped, faces blurred) before it is sent to the vision model, and only if face detection works."""
+    try:
+        answers = {k: bool(v) for k, v in json.loads(features).items()}
+    except (json.JSONDecodeError, AttributeError) as exc:
+        raise HTTPException(422, "features must be a JSON object") from exc
+    raw = await photo.read()
+    if len(raw) > 15 * 1024 * 1024:
+        raise HTTPException(413, "photo larger than 15 MB")
+    try:
+        red = redact(raw)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    now = datetime.now(timezone.utc)
+    case, node, dist = _record_report(reach_id, lat, lon, answers, "citizen", observer, now, case_id)
+    first = len(case.belief.ledger) - 1  # ledger entries created by this request start here
+    sha = hashlib.sha256(red.jpeg).hexdigest()
+    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    (MEDIA_DIR / f"{sha}.jpg").write_bytes(red.jpeg)
+    photo_out: dict = {"sha256": sha, "faces_blurred": red.faces_blurred, "exif_removed": red.exif_removed}
+    if not red.face_detection:
+        photo_out |= {"status": "not_analysed", "reason": "face detection unavailable, so the photo was not sent"}
+    else:
+        try:
+            pf = extract_features(red.jpeg)
+            pobs = to_observation(pf, node, observed_at=now + timedelta(seconds=1))
+            if pobs:
+                case.add(pobs)
+                store.add_observation(case.id, pobs)
+            photo_out |= {"status": "analysed", "note": pf.note, "usable": pf.image_usable and pf.shows_stream_or_outfall,
+                          "features": {f: c.model_dump() for f, c in pf.calls().items()},
+                          "conflicts": [c.__dict__ for c in conflicts(answers, pf)]}
+        except PhotoModelUnavailable as exc:
+            photo_out |= {"status": "not_analysed", "reason": str(exc)}
+    return {"case_id": case.id, "snapped_node": node, "snap_distance_m": round(dist, 1), "status": case.status,
+            "photo": photo_out, "ledger": [e.as_dict() for e in case.belief.ledger[first:]]}
 
 
 @app.get("/v1/cases/{case_id}/recommendations")

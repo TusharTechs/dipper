@@ -1,0 +1,147 @@
+import importlib
+import io
+import json
+from types import SimpleNamespace
+
+import pytest
+from fastapi.testclient import TestClient
+from PIL import Image
+
+from dipper_engine import Belief, Context, Observation, synthetic_tree
+from dipper_engine.photo import PhotoFeatures, PhotoModelUnavailable, conflicts, extract_features, redact, to_observation
+
+DRY = Context(rain_48h_mm=0.0, tmax_c=24, hour=10, dry_days=8)
+
+
+def jpeg_with_exif(size=(4000, 3000)) -> bytes:
+    img = Image.new("RGB", size, (90, 110, 100))
+    exif = Image.Exif()
+    exif[0x010F] = "TestCam"          # Make
+    exif[0x9003] = "2026:09:18 08:10:00"
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", exif=exif.tobytes())
+    return buf.getvalue()
+
+
+def features_json(**over) -> str:
+    base = {f: {"present": False, "confidence": 0.9} for f in
+            ("grey", "sewage_fungus", "foam", "brown_turbid", "green", "pipe_flowing", "dead_fish")}
+    base.update(over)
+    return json.dumps({"shows_stream_or_outfall": True, "image_usable": True, "note": "Grey plume below a pipe.", **base})
+
+
+class FakeClient:
+    def __init__(self, text: str | None, stop_reason: str = "end_turn"):
+        self.calls = []
+        content = [SimpleNamespace(type="text", text=text)] if text is not None else []
+        resp = SimpleNamespace(stop_reason=stop_reason, content=content)
+        self.beta = SimpleNamespace(messages=SimpleNamespace(create=lambda **kw: (self.calls.append(kw), resp)[1]))
+
+
+def test_redact_strips_metadata_and_downscales():
+    raw = jpeg_with_exif()
+    assert len(Image.open(io.BytesIO(raw)).getexif()) > 0
+    red = redact(raw)
+    out = Image.open(io.BytesIO(red.jpeg))
+    assert len(out.getexif()) == 0
+    assert max(out.size) == 1568 and red.face_detection
+    with pytest.raises(ValueError):
+        redact(b"not an image")
+
+
+def test_extract_sends_redacted_image_with_schema_and_fallbacks():
+    fake = FakeClient(features_json(grey={"present": True, "confidence": 0.85}))
+    pf = extract_features(redact(jpeg_with_exif()).jpeg, client=fake)
+    assert pf.grey.present and pf.grey.confidence == 0.85
+    kw = fake.calls[0]
+    assert kw["model"] == "claude-opus-5" and kw["fallbacks"] == "default"
+    assert kw["betas"] == ["server-side-fallback-2026-07-01"]
+    assert kw["output_config"]["format"]["type"] == "json_schema"
+    img = kw["messages"][0]["content"][0]
+    assert img["type"] == "image" and img["source"]["media_type"] == "image/jpeg"
+
+
+@pytest.mark.parametrize("fake", [FakeClient(None, stop_reason="refusal"), FakeClient("{not json"), FakeClient('{"image_usable": true}')])
+def test_extract_failures_are_reported_not_raised_as_crashes(fake):
+    with pytest.raises(PhotoModelUnavailable):
+        extract_features(b"x", client=fake)
+
+
+def test_photo_observation_is_weaker_than_a_citizen_report():
+    g = synthetic_tree(seed=2)
+    g.place_synthetic_candidates(8, seed=2)
+    node = min(g.access_nodes, key=lambda n: g.nodes[n].dist_to_outlet_m)
+    pf = PhotoFeatures.model_validate_json(features_json(grey={"present": True, "confidence": 0.9}))
+    pobs = to_observation(pf, node)
+    assert pobs.role == "photo_model" and pobs.positive and ("grey", True) in pobs.features
+    a, b = Belief(g, DRY), Belief(g, DRY)
+    photo_w = a.update(pobs).harm_bans
+    citizen_w = b.update(Observation("report", True, node_id=node, features=(("grey", True),))).harm_bans
+    assert 0 < photo_w < citizen_w
+
+
+def test_unusable_photo_adds_no_evidence_and_conflicts_prompt_the_citizen():
+    unusable = PhotoFeatures.model_validate({**json.loads(features_json()), "image_usable": False})
+    assert to_observation(unusable, "m1") is None
+    pf = PhotoFeatures.model_validate_json(features_json(grey={"present": True, "confidence": 0.9}))
+    cs = conflicts({"grey": False, "foam": False}, pf)
+    assert [c.feature for c in cs] == ["grey"] and "Keep your answer" in cs[0].prompt
+
+
+@pytest.fixture
+def api(tmp_path, monkeypatch):
+    monkeypatch.setenv("DIPPER_DB", str(tmp_path / "t.sqlite3"))
+    import dipper_api.main as main
+    main = importlib.reload(main)
+    monkeypatch.setattr(main, "MEDIA_DIR", tmp_path / "media")
+    with TestClient(main.app) as client:
+        yield main, client
+
+
+def _post(client, main, answers):
+    g = main.reach("coimbra-ribeira-de-coselhas")
+    nd = next(n for n in g.nodes.values() if n.access)
+    return client.post("/v1/signals/photo", files={"photo": ("p.jpg", jpeg_with_exif((800, 600)), "image/jpeg")},
+                       data={"reach_id": "coimbra-ribeira-de-coselhas", "lat": nd.lat, "lon": nd.lon,
+                             "features": json.dumps(answers), "observer": "cit-7"})
+
+
+def test_photo_endpoint_records_both_observers(api, monkeypatch):
+    main, client = api
+    pf = PhotoFeatures.model_validate_json(features_json(grey={"present": True, "confidence": 0.9}))
+    monkeypatch.setattr(main, "extract_features", lambda jpeg: pf)
+    r = _post(client, main, {"grey": False, "sewage_odour": True}).json()
+    assert r["photo"]["status"] == "analysed" and r["photo"]["conflicts"][0]["feature"] == "grey"
+    roles = [o.role for o in main._cases[r["case_id"]].belief.observations]
+    assert roles == ["citizen", "photo_model"]
+    assert [e["text"].endswith("[photo_model]") for e in r["ledger"]] == [False, True]
+    assert (main.MEDIA_DIR / f"{r['photo']['sha256']}.jpg").exists()
+
+
+def test_photo_endpoint_keeps_the_report_when_model_unavailable(api, monkeypatch):
+    main, client = api
+
+    def boom(jpeg):
+        raise PhotoModelUnavailable("no credentials")
+    monkeypatch.setattr(main, "extract_features", boom)
+    r = _post(client, main, {"grey": True}).json()
+    assert r["photo"]["status"] == "not_analysed" and "no credentials" in r["photo"]["reason"]
+    assert [o.role for o in main._cases[r["case_id"]].belief.observations] == ["citizen"]
+
+
+def test_missing_credentials_become_unavailable_without_network(monkeypatch):
+    for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_PROFILE"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("ANTHROPIC_CONFIG_DIR", "/nonexistent-dipper-test")
+    with pytest.raises(PhotoModelUnavailable, match="credentials"):
+        extract_features(redact(jpeg_with_exif((64, 48))).jpeg)
+
+
+def test_request_time_auth_error_becomes_unavailable():
+    class NoAuth(FakeClient):
+        def __init__(self):
+            def create(**kw):
+                raise TypeError('"Could not resolve authentication method. Expected one of api_key, auth_token"')
+            self.beta = SimpleNamespace(messages=SimpleNamespace(create=create))
+    with pytest.raises(PhotoModelUnavailable, match="credentials"):
+        extract_features(b"x", client=NoAuth())

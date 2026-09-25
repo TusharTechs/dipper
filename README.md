@@ -24,7 +24,12 @@ Built for the OneAquaHealth IEEE Global Hackathon 2026 (Track 3, AI-Supported As
    `EVSI for the advisory decision + 1.2 × bits of source entropy removed − cost − delay`
 
    Each recommendation comes with both outcome branches in plain language.
-5. **People decide.** Advisories, utility handoffs and dismissals require a named approver. Every update is
+5. **Photos help, people decide.** A citizen photo is redacted on the server (EXIF including GPS removed,
+   faces blurred) and only then read by Claude for visual indicators. Those enter the ledger as a separate,
+   weaker observer. A disagreement with the citizen's answer becomes a prompt to them and never overwrites
+   what they said. Without an `ANTHROPIC_API_KEY` the report is still recorded, and the photo is kept but not
+   analysed.
+6. **People decide.** Advisories, utility handoffs and dismissals require a named approver. Every update is
    explained in an evidence ledger.
 
 ## Quickstart
@@ -100,10 +105,12 @@ fhir/ig/                 Dipper FSH profiles on the OAH IG; fhir/examples/ bundl
 
 | Built | Next |
 |---|---|
-| Engine, value-of-information recommender, SourceBench, scenario replay, API, 22 tests | Photo feature extraction (multimodal LLM, redaction first) |
-| Web UI: case workspace with probability ribbon, queue, citizen report and mission flow (PT and EN) | PostGIS persistence (the API store is in memory) |
+| Engine, value-of-information recommender, SourceBench, scenario replay, API, 36 tests | Live evaluation of photo features on labelled outfall photos (needs an API key) |
+| Web UI: case workspace with probability ribbon, queue, SourceBench screen, citizen report, photo and mission flow (PT and EN) | PostGIS for multi-user deployments (SQLite event store today) |
 | FHIR: 8 Dipper response profiles on the OAH IG; bundle export; **0 errors** in the HL7 validator | Offline PWA, notifications, ENORA API import |
 | Real OSM reaches for 6 OAH streams; real weather context; human approval gates; evidence ledger | Expert review of likelihoods; lab calibration |
+| SQLite event store (cases survive restarts; `/history` audit trail) | Number-plate redaction |
+| Photo pipeline: EXIF stripped, faces blurred, then Claude (`claude-opus-5`, structured output, refusal fallbacks) reads visual indicators as a down-weighted observer | |
 
 ## Licence and attribution
 

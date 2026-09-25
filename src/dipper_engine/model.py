@@ -92,8 +92,9 @@ class ModelParams:
     visibility: dict[str, float] = field(default_factory=lambda: _d(
         foul=0.90, overflow=0.90, chemical=0.80, sediment=0.95, bloom=0.90, benign=0.70))
     # Observer sensitivity / false-alarm rate for look-and-smell checks, by role.
-    role_sensitivity: dict[str, float] = field(default_factory=lambda: _d(citizen=0.80, trained=0.90, inspector=0.95))
-    role_false_alarm: dict[str, float] = field(default_factory=lambda: _d(citizen=0.10, trained=0.06, inspector=0.03))
+    # photo_model = features read from a citizen photo by a multimodal model: deliberately weaker than any person.
+    role_sensitivity: dict[str, float] = field(default_factory=lambda: _d(citizen=0.80, trained=0.90, inspector=0.95, photo_model=0.60))
+    role_false_alarm: dict[str, float] = field(default_factory=lambda: _d(citizen=0.10, trained=0.06, inspector=0.03, photo_model=0.15))
     # Rate at which some *other* outfall looks polluted (background dirty outfalls).
     other_outfall_dirty: float = 0.06
 
@@ -113,7 +114,7 @@ class ModelParams:
         grey=0.15, sewage_odour=0.10, foam=0.25, brown_turbid=0.30, green=0.15,
         pipe_flowing=0.20, dead_fish=0.03, sewage_fungus=0.03))
     # How much a role's feature answers are trusted (1 = take at face value, 0 = ignore).
-    feature_trust: dict[str, float] = field(default_factory=lambda: _d(citizen=0.7, trained=0.85, inspector=0.95))
+    feature_trust: dict[str, float] = field(default_factory=lambda: _d(citizen=0.7, trained=0.85, inspector=0.95, photo_model=0.4))
 
     # Measured checks: P(positive | pollution present at the point, hypothesis) and P(positive | absent).
     ammonium_pos: dict[str, float] = field(default_factory=lambda: _d(

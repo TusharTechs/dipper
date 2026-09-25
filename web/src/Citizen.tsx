@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import CaseMap from './CaseMap'
-import { api, REACH_ID, type CaseView, type GeoJSON, type Recommendation } from './api'
+import { api, REACH_ID, signalPhoto, type CaseView, type GeoJSON, type PhotoResult, type Recommendation } from './api'
 
 type Lang = 'pt' | 'en'
 const T = {
@@ -13,6 +13,8 @@ const T = {
     outcome: 'What your help did', ruledOut: 'Your check changed the search:', status: 'Case status',
     another: 'Report something else', safety: 'Stay on the bank. Do not touch the water or pipes.',
     pickFirst: 'Tap the map first.', mission: 'Your mission',
+    photo: 'Add a photo (optional)', photoPrivacy: 'Location data is removed and faces are blurred before the photo is analysed.',
+    photoRead: 'Photo checked', photoNot: 'Photo saved but not analysed', keep: 'Keep my answer', blurred: 'faces blurred',
   },
   pt: {
     title: 'Comunicar um sinal de poluição', where: 'Toque no mapa onde está, junto à ribeira.',
@@ -23,6 +25,8 @@ const T = {
     outcome: 'O que a sua ajuda fez', ruledOut: 'A sua verificação mudou a procura:', status: 'Estado do caso',
     another: 'Comunicar outra coisa', safety: 'Fique na margem. Não toque na água nem nos tubos.',
     pickFirst: 'Toque primeiro no mapa.', mission: 'A sua missão',
+    photo: 'Adicionar fotografia (opcional)', photoPrivacy: 'A localização é removida e os rostos são desfocados antes de a fotografia ser analisada.',
+    photoRead: 'Fotografia verificada', photoNot: 'Fotografia guardada mas não analisada', keep: 'Manter a minha resposta', blurred: 'rostos desfocados',
   },
 }
 const FEATURES: { id: string; en: string; pt: string }[] = [
@@ -52,6 +56,9 @@ export default function Citizen() {
   const [view, setView] = useState<CaseView | null>(null)
   const [mission, setMission] = useState<Recommendation | null>(null)
   const [change, setChange] = useState<string | null>(null)
+  const [file, setFile] = useState<File | null>(null)
+  const [photoRes, setPhotoRes] = useState<PhotoResult['photo'] | null>(null)
+  const [kept, setKept] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const observer = 'cit-demo'
@@ -69,9 +76,16 @@ export default function Citizen() {
     if (!picked) { setError(t.pickFirst); return }
     setBusy(true); setError(null)
     try {
-      const r = await api.signal({ reach_id: REACH_ID, lat: picked.lat, lon: picked.lon, features: feats, role: 'citizen', observer })
-      setCaseId(r.case_id)
-      await refresh(r.case_id)
+      let id: string
+      if (file) {
+        const r = await signalPhoto(file, { reach_id: REACH_ID, lat: picked.lat, lon: picked.lon, features: feats, observer })
+        setPhotoRes(r.photo); id = r.case_id
+      } else {
+        const r = await api.signal({ reach_id: REACH_ID, lat: picked.lat, lon: picked.lon, features: feats, role: 'citizen', observer })
+        id = r.case_id
+      }
+      setCaseId(id)
+      await refresh(id)
     } catch (e: any) { setError(e.message) } finally { setBusy(false) }
   }
 
@@ -86,7 +100,7 @@ export default function Citizen() {
     } catch (e: any) { setError(e.message) } finally { setBusy(false) }
   }
 
-  const reset = () => { setCaseId(null); setView(null); setMission(null); setFeats({}); setPicked(null); setChange(null) }
+  const reset = () => { setCaseId(null); setView(null); setMission(null); setFeats({}); setPicked(null); setChange(null); setFile(null); setPhotoRes(null); setKept([]) }
 
   return (
     <div className="citizen">
@@ -109,6 +123,11 @@ export default function Citizen() {
                 onClick={() => setFeats((s) => ({ ...s, [f.id]: !s[f.id] }))}>{f[lang]}</button>
             ))}
           </div>
+          <label className="photo-pick" htmlFor="photo-input">
+            <span>{file ? file.name : t.photo}</span>
+            <input id="photo-input" type="file" accept="image/*" capture="environment" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          </label>
+          <p className="muted small">{t.photoPrivacy}</p>
           <button className="primary wide" disabled={busy} onClick={send}>{busy ? t.sending : t.send}</button>
           <p className="muted small">{t.safety}</p>
         </>}
@@ -116,6 +135,13 @@ export default function Citizen() {
         {caseId && view && <>
           <div className="thanks"><strong>{t.thanks} {view.id}.</strong> {t.others}: {view.observations.filter((o) => o.kind === 'report').length - 1}.</div>
           <p><span className="muted">{t.status}:</span> <b>{STATUS[view.status]?.[lang] ?? view.status}</b></p>
+          {photoRes && <div className="photo-res">
+            <strong>{photoRes.status === 'analysed' ? t.photoRead : t.photoNot}</strong>
+            <span className="muted small"> · {photoRes.faces_blurred} {t.blurred}{photoRes.reason ? ` · ${photoRes.reason}` : ''}</span>
+            {(photoRes.conflicts ?? []).filter((c) => !kept.includes(c.feature)).map((c) => (
+              <div key={c.feature} className="conflict"><span>{c.prompt}</span>
+                <button className="small" onClick={() => setKept((k) => [...k, c.feature])}>{t.keep}</button></div>))}
+          </div>}
           {change && <div className="outcome"><h2>{t.outcome}</h2><p>{t.ruledOut} {change}</p></div>}
           {mission && <div className="mission">
             <span className="eyebrow">{t.mission}</span>

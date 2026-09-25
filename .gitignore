@@ -15,3 +15,4 @@ fhir/.build/
 fhir/ig/fsh-generated/
 web/dist/
 data/dipper.sqlite3*
+data/media/
