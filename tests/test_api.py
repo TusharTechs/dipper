@@ -547,3 +547,24 @@ def test_fhir_ids_from_different_cases_never_collide(api):
     assert ids[0] & ids[1] <= {"Device/dev-dipper-engine"}             # only the shared engine description
     for i in ids[0] | ids[1]:
         assert re.fullmatch(r"[A-Za-z0-9\-.]{1,64}", i.split("/", 1)[1]), i
+
+
+def test_a_client_ip_header_from_the_hosts_edge_is_used_only_from_a_trusted_proxy(api, monkeypatch):
+    main, _ = api
+    nd = _node(main)
+    body = {"reach_id": "coimbra-ribeira-de-coselhas", "lat": nd.lat, "lon": nd.lon, "features": {}}
+    monkeypatch.setattr(main, "PROXY_HOPS", 1)
+    monkeypatch.setattr(main, "CLIENT_IP_HEADER", "cf-connecting-ip")
+    main._hits.clear()
+    with TestClient(main.app, client=("127.0.0.1", 40000)) as edge:
+        # one real client behind rotating load balancers: still one rate-limit bucket
+        codes = [edge.post("/v1/signals", json=body, headers={"CF-Connecting-IP": "198.51.100.7",
+                                                                "X-Forwarded-For": f"198.51.100.7, 10.0.0.{i}"}).status_code
+                 for i in range(32)]
+    assert 429 in codes
+    main._hits.clear()
+    with TestClient(main.app, client=("203.0.113.9", 40000)) as outsider:
+        # a direct caller cannot pick its own identity with the header
+        codes = [outsider.post("/v1/signals", json=body, headers={"CF-Connecting-IP": f"198.51.100.{i}"}).status_code
+                 for i in range(32)]
+    assert 429 in codes

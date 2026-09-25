@@ -261,6 +261,7 @@ user, has a health check on `/api/ready`, and keeps all state in the `/app/state
 | `DIPPER_MEDIA_DAYS` | Photo retention in days (default 30), enforced at startup and every hour |
 | `DIPPER_PEPPER` | Secret for pseudonymising citizen device ids. Generated and stored on first run if unset. |
 | `DIPPER_PROXY_HOPS`, `DIPPER_TRUSTED_PROXIES` | Reverse proxies in front of the app and their addresses (default loopback). Forwarded headers are read only from those addresses. |
+| `DIPPER_CLIENT_IP_HEADER` | A client-address header the host's edge always sets, such as `cf-connecting-ip` on Render. Used instead of `X-Forwarded-For`, and only from trusted proxies. |
 | `ANTHROPIC_API_KEY` or `GEMINI_API_KEY`, `DIPPER_VISION_PROVIDER` | Photo reading (optional; reports work without it) |
 | `FHIR_BASE_URL`, `FHIR_TOKEN` | FHIR server for case hand-off |
 | `PORT` | Listening port (default 8000) |

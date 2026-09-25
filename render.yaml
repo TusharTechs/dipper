@@ -15,8 +15,12 @@ services:
     envVars:
       - key: DIPPER_DEMO
         value: "1"
-      # Render's load balancer sits in front: read the client address it forwards, only from private networks.
+      # Render's Cloudflare edge and load balancer sit in front. The last X-Forwarded-For entry is an internal
+      # load balancer that changes between requests, so rate limits use CF-Connecting-IP, which the edge always
+      # overwrites. Forwarded headers are read only from private (internal) addresses.
       - key: DIPPER_PROXY_HOPS
         value: "1"
       - key: DIPPER_TRUSTED_PROXIES
         value: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10
+      - key: DIPPER_CLIENT_IP_HEADER
+        value: cf-connecting-ip

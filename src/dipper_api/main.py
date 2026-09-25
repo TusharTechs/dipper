@@ -169,6 +169,9 @@ _hits: dict[tuple[str, str], deque] = defaultdict(deque)
 PROXY_HOPS = int(os.getenv("DIPPER_PROXY_HOPS", "0"))
 TRUSTED_PROXIES = [ipaddress.ip_network(n.strip(), strict=False)
                    for n in os.getenv("DIPPER_TRUSTED_PROXIES", "127.0.0.1/32,::1/128").split(",") if n.strip()]
+# Some hosts put the real client address in a header their edge always overwrites (Render and other
+# Cloudflare-fronted hosts: CF-Connecting-IP). When set, that header wins, still only from a trusted proxy.
+CLIENT_IP_HEADER = os.getenv("DIPPER_CLIENT_IP_HEADER", "").strip().lower()
 
 
 def _from_proxy(request: Request) -> bool:
@@ -184,8 +187,11 @@ def _from_proxy(request: Request) -> bool:
 def _client_key(request: Request) -> str:
     ip = request.client.host if request.client else "unknown"
     xff = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
-    if xff and _from_proxy(request):
-        ip = xff[-PROXY_HOPS] if len(xff) >= PROXY_HOPS else xff[0]
+    if _from_proxy(request):
+        if CLIENT_IP_HEADER and request.headers.get(CLIENT_IP_HEADER):
+            ip = request.headers[CLIENT_IP_HEADER].strip()
+        elif xff:
+            ip = xff[-PROXY_HOPS] if len(xff) >= PROXY_HOPS else xff[0]
     return hashlib.sha256(ip.encode()).hexdigest()[:16]  # never keep raw IPs
 
 
@@ -414,26 +420,6 @@ def ready() -> dict:
         store.db.execute("select 1").fetchone()
     return {"ok": True, "cases": len(_cases), "demo": demo_enabled(), "vision_provider": vision_provider(),
             "fhir_server": bool(os.getenv("FHIR_BASE_URL"))}
-
-
-@app.get("/v1/debug/client")
-def debug_client(request: Request) -> dict:
-    """Demo only: how this deployment's proxy forwards the client address, to configure rate limiting. Values are
-    returned only as short hashes, never as IP addresses."""
-    if not demo_enabled():
-        raise HTTPException(404, "not found")
-    h = lambda v: hashlib.sha256(v.encode()).hexdigest()[:8]
-    xff = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
-    def private(v: str) -> bool | None:
-        try:
-            return ipaddress.ip_address(v).is_private
-        except ValueError:
-            return None
-    names = ("x-real-ip", "true-client-ip", "cf-connecting-ip", "x-client-ip", "forwarded", "x-forwarded-proto")
-    return {"peer_trusted": _from_proxy(request), "peer_private": private(request.client.host) if request.client else None,
-            "xff": [{"hash": h(v), "private": private(v)} for v in xff],
-            "headers": {n: h(request.headers[n]) for n in names if n in request.headers},
-            "rate_limit_key": _client_key(request)}
 
 
 @app.post("/v1/auth/demo")
