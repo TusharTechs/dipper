@@ -36,16 +36,36 @@ class Case:
 
     # ---- lifecycle ---------------------------------------------------------------
     def add(self, obs: Observation) -> None:
+        if self.status in self.TERMINAL:
+            raise ValueError(f"the case is {self.status}; open a new case for new evidence")
         self.belief.update(obs)
         if self._status == "open" and len(self.belief.observations) > 1:
             self._status = "localizing"
 
+    # Allowed status for each action. Anything else is rejected, so a case cannot jump e.g. from open to verified.
+    ALLOWED = {
+        "dispatch": {"open", "localizing", "localized"}, "lab_request": {"open", "localizing", "localized", "handed_off"},
+        "advisory": {"open", "localizing", "localized", "handed_off", "fixed"},
+        "notify_utility": {"localized"}, "dismiss": {"open", "localizing", "localized"},
+        "fixed": {"handed_off"}, "verified": {"fixed"}, "close": {"verified", "dismissed", "handed_off", "fixed"},
+        "fhir_push": {"open", "localizing", "localized", "handed_off", "fixed", "verified", "closed", "dismissed"},
+    }
+    NEEDS_APPROVER = {"advisory", "notify_utility", "dismiss", "fixed", "verified", "close"}
+    TERMINAL = {"closed", "dismissed", "verified"}
+
     def act(self, type_: str, approver: str | None, payload: dict[str, Any] | None = None,
             at: datetime | None = None) -> Action:
-        """Human decisions. Advisories and utility handoffs require an approver."""
-        if type_ in ("advisory", "notify_utility", "dismiss") and not approver:
+        """Human decisions, with an explicit transition table. Consequential actions require an approver."""
+        if type_ not in self.ALLOWED:
+            raise ValueError(f"unknown action {type_}")
+        if type_ in self.NEEDS_APPROVER and not (approver and approver.strip()):
             raise PermissionError(f"{type_} requires a human approver")
-        a = Action(type=type_, at=at or datetime.now(timezone.utc), approver=approver, payload=payload or {})
+        if self.status not in self.ALLOWED[type_]:
+            raise ValueError(f"{type_.replace('_', ' ')} is not possible while the case is {self.status.replace('_', ' ')}")
+        snapshot = {"status_before": self.status, "p_harmful": round(self.belief.p_harmful(), 4),
+                    "top_source": list(self.belief.top_source()), "model_version": "0.2.0"}
+        a = Action(type=type_, at=at or datetime.now(timezone.utc), approver=approver,
+                   payload={**(payload or {}), "seen": (payload or {}).get("seen", snapshot)})
         self.actions.append(a)
         self._status = {"notify_utility": "handed_off", "fixed": "fixed", "verified": "verified",
                         "close": "closed", "dismiss": "dismissed"}.get(type_, self._status)
@@ -79,6 +99,39 @@ class Case:
             if 0.2 < pl["p_affected"] < 0.8:
                 out.append(f"Whether it has reached {pl['label']} ({pl['p_affected']:.0%}).")
         return out
+
+    def advisory_draft(self) -> dict[str, Any]:
+        """Tiered wording for a public contact advisory. A person approves it; nothing here is a diagnosis."""
+        b = self.belief
+        reports = [o for o in b.observations if o.kind == "report" and o.role != "photo_model"]
+        positives = [o for o in b.observations if o.kind != "report" and o.positive]
+        cleans = [o for o in b.observations if not o.positive]
+        feats = sorted({f for o in reports for f, present in o.features if present})
+        lead = b.hypothesis_table()[0]
+        cid, pc = b.top_source()
+        labels = b.labels()
+        places = [e["label"] for e in exposure_report(b) if e["p_affected"] >= 0.3][:3]
+        from .model import FEATURE_LABELS
+        observed = (f"{len(reports)} citizen report(s) of " + (", ".join(FEATURE_LABELS[f] for f in feats) or "pollution")
+                    + f"; {len(positives)} positive and {len(cleans)} clean follow-up check(s).")
+        inferred = (f"Model estimate, {lead['p']:.0%} likely: {lead['label'][0].lower() + lead['label'][1:]}. "
+                    f"Most likely entry point: {labels[cid]} ({pc:.0%}).")
+        risk = ("People and dogs in contact with the water downstream may be exposed to contamination"
+                + (f", including near {', '.join(places)}." if places else "."))
+        confirm = "Pathogens and their levels are not measured. A lab sample is needed to confirm."
+        if any(o.kind == "lab_ecoli" and o.positive for o in b.observations):
+            confirm = "A lab sample found faecal indicator bacteria above the screening threshold."
+        reach = self.graph.name
+        return {
+            "tiers": {"observed": observed, "inferred": inferred, "possible_risk": risk, "needs_confirmation": confirm},
+            "text": {
+                "en": (f"Avoid contact with the water and keep dogs out of {reach} downstream of the affected stretch "
+                       "until further notice. Reason: probable sewage discharge, not yet confirmed by a lab."),
+                "pt": (f"Evite o contacto com a água e mantenha os cães fora da {reach}, a jusante do troço afetado, "
+                       "até novo aviso. Motivo: provável descarga de esgoto, ainda sem confirmação laboratorial."),
+            },
+            "suggested": should_advise(b.p_harmful(), self.stakes, b.params),
+        }
 
     # ---- view -------------------------------------------------------------------
     def _obs_view(self, o: Observation) -> dict[str, Any]:
@@ -117,6 +170,7 @@ class Case:
             "ledger": [e.as_dict() for e in b.ledger],
             "observations": [self._obs_view(o) for o in b.observations],
             "unknowns": self.unknowns(),
+            "advisory_draft": self.advisory_draft(),
             "exposure": exposure_report(b),
             "recommendations": [r.as_dict() for r in recs],
             "actions": [{"type": a.type, "at": a.at.isoformat(), "approver": a.approver, "payload": a.payload} for a in self.actions],

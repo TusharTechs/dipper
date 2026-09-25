@@ -282,3 +282,43 @@ class _Builder:
 
 def case_bundle(case: Case, now: datetime | None = None) -> dict[str, Any]:
     return _Builder(case, now or datetime.now(timezone.utc)).build()
+
+
+def to_transaction(bundle: dict[str, Any]) -> dict[str, Any]:
+    """Collection → transaction Bundle with idempotent PUTs, so re-sending a case updates rather than duplicates."""
+    entries = []
+    for e in bundle["entry"]:
+        r = e["resource"]
+        entries.append({"fullUrl": e["fullUrl"], "resource": r,
+                        "request": {"method": "PUT", "url": f"{r['resourceType']}/{r['id']}"}})
+    return {"resourceType": "Bundle", "type": "transaction", "meta": bundle.get("meta", {}),
+            "identifier": bundle.get("identifier"), "entry": entries}
+
+
+class FhirPushError(RuntimeError):
+    pass
+
+
+def push(bundle: dict[str, Any], base_url: str, token: str | None = None, timeout: float = 30.0) -> dict[str, Any]:
+    """POST a transaction to a FHIR R4 server. Returns a summary of the server's transaction-response."""
+    import httpx
+
+    headers = {"Content-Type": "application/fhir+json", "Accept": "application/fhir+json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        r = httpx.post(base_url.rstrip("/"), json=to_transaction(bundle), headers=headers, timeout=timeout)
+    except httpx.HTTPError as exc:
+        raise FhirPushError(f"FHIR server unreachable: {exc.__class__.__name__}") from exc
+    if r.status_code >= 400:
+        detail = ""
+        try:
+            issues = r.json().get("issue", [])
+            detail = "; ".join(i.get("diagnostics", "") for i in issues[:3])
+        except ValueError:
+            pass
+        raise FhirPushError(f"FHIR server returned {r.status_code}: {detail}"[:500])
+    resp = r.json()
+    statuses = [e.get("response", {}).get("status", "") for e in resp.get("entry", [])]
+    return {"server": base_url, "resources": len(statuses),
+            "created": sum(s.startswith("201") for s in statuses), "updated": sum(s.startswith("200") for s in statuses)}

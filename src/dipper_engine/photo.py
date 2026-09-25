@@ -18,6 +18,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Any
 
+import warnings
+
 from PIL import Image, ImageFilter, ImageOps
 from pydantic import BaseModel, Field, ValidationError
 
@@ -28,6 +30,9 @@ PHOTO_ROLE = "photo_model"
 DEFAULT_MODEL = os.getenv("DIPPER_VISION_MODEL", "claude-opus-5")
 GEMINI_MODEL = os.getenv("DIPPER_GEMINI_MODEL", "gemini-flash-latest")
 MAX_SIDE = 1568            # long-edge size that keeps detail without wasting image tokens
+MAX_PIXELS = 40_000_000    # refuse decompression bombs (a tiny file that decodes to a huge image)
+FORMATS = ("JPEG", "PNG", "WEBP", "MPO")
+MODEL_TIMEOUT_S = 30
 PRESENT_AT = 0.6           # confidence needed to count a feature as present
 # Features the photo observer never reports. brown_turbid had 22% precision (7 false positives in 24
 # negatives) on the Commons evaluation (data/eval/report-gemini-v1.md), and a false brown call pushes the
@@ -51,11 +56,18 @@ class Redacted:
 def redact(image_bytes: bytes) -> Redacted:
     """Re-encode without metadata, blur faces, downscale. Raises ValueError for unreadable images."""
     try:
-        img = Image.open(io.BytesIO(image_bytes))
-        img = ImageOps.exif_transpose(img)  # keep orientation, then drop all metadata on re-encode
-        img = img.convert("RGB")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            img = Image.open(io.BytesIO(image_bytes), formats=FORMATS)
+            if img.width * img.height > MAX_PIXELS:
+                raise ValueError("image is too large")
+            img.draft("RGB", (MAX_SIDE, MAX_SIDE))  # JPEG: decode at reduced size, saves memory
+            img = ImageOps.exif_transpose(img)      # keep orientation, then drop all metadata on re-encode
+            img = img.convert("RGB")
+    except ValueError:
+        raise
     except Exception as exc:  # PIL raises several unrelated types for bad input
-        raise ValueError(f"unreadable image: {exc}") from exc
+        raise ValueError("unreadable image") from exc
     img.thumbnail((MAX_SIDE, MAX_SIDE))
     faces, detection = _blur_faces(img)
     buf = io.BytesIO()
@@ -147,7 +159,7 @@ def vision_provider() -> str:
         return explicit
     if os.getenv("ANTHROPIC_API_KEY"):
         return "anthropic"
-    if os.getenv("GEMINI_API_KEY") or os.getenv("LLM_API_KEY"):
+    if os.getenv("GEMINI_API_KEY"):
         return "gemini"
     return "anthropic"
 
@@ -173,10 +185,12 @@ def extract_features_gemini(jpeg: bytes, client: Any | None = None, model: str =
     from google.genai import errors, types
 
     if client is None:
-        key = os.getenv("GEMINI_API_KEY") or os.getenv("LLM_API_KEY")
+        # LLM_API_KEY is only sent to Google when the operator explicitly chose Gemini.
+        key = os.getenv("GEMINI_API_KEY") or (os.getenv("LLM_API_KEY")
+                                               if os.getenv("DIPPER_VISION_PROVIDER", "").lower() == "gemini" else None)
         if not key:
-            raise PhotoModelUnavailable("no photo model credentials configured (set GEMINI_API_KEY or LLM_API_KEY)")
-        client = genai.Client(api_key=key)
+            raise PhotoModelUnavailable("no photo model credentials configured (set GEMINI_API_KEY)")
+        client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=MODEL_TIMEOUT_S * 1000))
     try:
         response = client.models.generate_content(
             model=model,
@@ -206,7 +220,7 @@ def extract_features(jpeg: bytes, client: Any | None = None, model: str = DEFAUL
 
     if client is None:
         try:
-            client = anthropic.Anthropic()
+            client = anthropic.Anthropic(timeout=MODEL_TIMEOUT_S, max_retries=1)
         except anthropic.AnthropicError as exc:  # no credentials configured
             raise PhotoModelUnavailable(f"no photo model credentials configured: {exc}") from exc
     try:

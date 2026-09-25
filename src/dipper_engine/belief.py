@@ -35,6 +35,7 @@ class Observation:
     observed_at: datetime | None = None
     observer: str | None = None                # pseudonymous id
     tier: str = "observed"                     # observed | simulated
+    media: str | None = None                   # sha256 of a stored, redacted photo (for erasure requests)
 
     def __post_init__(self) -> None:
         if self.kind not in OBS_KINDS:
@@ -43,6 +44,8 @@ class Observation:
             raise ValueError("outfall_look needs candidate_id")
         if self.kind != "outfall_look" and not self.node_id:
             raise ValueError(f"{self.kind} needs node_id")
+        if self.observed_at is not None and self.observed_at.utcoffset() is None:
+            raise ValueError("observed_at must include a time zone")
 
     def describe(self, graph: ReachGraph) -> str:
         where = graph.candidate(self.candidate_id).label if self.candidate_id else graph.node_label(self.node_id)
@@ -198,7 +201,22 @@ class Belief:
         raise ValueError(obs.kind)
 
     # ---- update ------------------------------------------------------------------
+    def validate(self, obs: Observation) -> None:
+        """Raise ValueError if the observation does not fit this reach. Nothing is changed."""
+        if obs.candidate_id is not None and obs.candidate_id not in {c.id for c in self.graph.candidates}:
+            raise ValueError(f"unknown outfall {obs.candidate_id}")
+        if obs.node_id is not None and obs.node_id not in self.graph.nodes:
+            raise ValueError(f"unknown stream point {obs.node_id}")
+        if obs.role not in self.params.role_sensitivity:
+            raise ValueError(f"unknown observer role {obs.role}")
+        for f, _ in obs.features:
+            if f not in self.params.feature_lik:
+                raise ValueError(f"unknown feature {f}")
+
     def update(self, obs: Observation) -> LedgerEntry:
+        """Bayes update. Validates first, so a rejected observation leaves the belief untouched."""
+        self.validate(obs)
+        text = obs.describe(self.graph)
         before = self.p
         lik = np.clip(self.likelihood(obs), 1e-12, None)
         if obs.kind == "report":
@@ -228,7 +246,7 @@ class Belief:
         self._refresh_persistence()
         after = self.p
         entry = LedgerEntry(
-            index=len(self.ledger) + 1, text=obs.describe(self.graph), kind=obs.kind, tier=obs.tier,
+            index=len(self.ledger) + 1, text=text, kind=obs.kind, tier=obs.tier,
             weight_bans=round(best_w, 3), weight_for=best_h if abs(best_w) >= 0.2 else "", harm_bans=round(harm_bans, 3),
             entropy_before_bits=round(h_before, 3), entropy_after_bits=round(self.location_entropy(after), 3),
             p_harmful_before=round(harm_before, 4), p_harmful_after=round(float(after[self._harm].sum()), 4),

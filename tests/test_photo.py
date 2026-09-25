@@ -49,6 +49,14 @@ def test_redact_strips_metadata_and_downscales():
         redact(b"not an image")
 
 
+def test_redact_refuses_decompression_bombs():
+    buf = io.BytesIO()
+    Image.new("1", (9000, 9000)).save(buf, format="PNG")  # ~81 M pixels in a tiny file
+    assert len(buf.getvalue()) < 200_000
+    with pytest.raises(ValueError):
+        redact(buf.getvalue())
+
+
 def test_extract_sends_redacted_image_with_schema_and_fallbacks():
     fake = FakeClient(features_json(grey={"present": True, "confidence": 0.85}))
     pf = extract_features(redact(jpeg_with_exif()).jpeg, client=fake)
@@ -94,6 +102,7 @@ def api(tmp_path, monkeypatch):
     import dipper_api.main as main
     main = importlib.reload(main)
     monkeypatch.setattr(main, "MEDIA_DIR", tmp_path / "media")
+    main._hits.clear()
     with TestClient(main.app) as client:
         yield main, client
 
@@ -114,8 +123,9 @@ def test_photo_endpoint_records_both_observers(api, monkeypatch):
     assert r["photo"]["status"] == "analysed" and r["photo"]["conflicts"][0]["feature"] == "grey"
     roles = [o.role for o in main._cases[r["case_id"]].belief.observations]
     assert roles == ["citizen", "photo_model"]
-    assert [e["text"].endswith("[photo_model]") for e in r["ledger"]] == [False, True]
-    assert (main.MEDIA_DIR / f"{r['photo']['sha256']}.jpg").exists()
+    assert [e.endswith("[photo_model]") for e in r["ledger"]] == [False, True]
+    media = {o.media for o in main._cases[r["case_id"]].belief.observations}
+    assert len(media) == 1 and (main.MEDIA_DIR / f"{media.pop()}.jpg").exists()   # both observations link the photo
 
 
 def test_photo_endpoint_keeps_the_report_when_model_unavailable(api, monkeypatch):
@@ -172,7 +182,9 @@ def test_provider_selection(monkeypatch):
     for v in ("DIPPER_VISION_PROVIDER", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "LLM_API_KEY"):
         monkeypatch.delenv(v, raising=False)
     assert vision_provider() == "anthropic"
-    monkeypatch.setenv("LLM_API_KEY", "x")
+    monkeypatch.setenv("LLM_API_KEY", "x")  # a generic key alone never selects (or reaches) Google
+    assert vision_provider() == "anthropic"
+    monkeypatch.setenv("GEMINI_API_KEY", "x")
     assert vision_provider() == "gemini"
     monkeypatch.setenv("ANTHROPIC_API_KEY", "y")
     assert vision_provider() == "anthropic"
