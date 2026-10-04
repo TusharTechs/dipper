@@ -117,6 +117,7 @@ def _post(client, main, answers):
 
 def test_photo_endpoint_records_both_observers(api, monkeypatch):
     main, client = api
+    monkeypatch.setenv("DIPPER_VISION_PROVIDER", "anthropic")   # the model is stubbed; no key needed
     pf = PhotoFeatures.model_validate_json(features_json(grey={"present": True, "confidence": 0.9}))
     monkeypatch.setattr(main, "extract", lambda jpeg: pf)
     r = _post(client, main, {"grey": False, "sewage_odour": True}).json()
@@ -131,6 +132,7 @@ def test_photo_endpoint_records_both_observers(api, monkeypatch):
 
 def test_photo_endpoint_keeps_the_report_when_model_unavailable(api, monkeypatch):
     main, client = api
+    monkeypatch.setenv("DIPPER_VISION_PROVIDER", "anthropic")   # analysis is on, but the model call fails
 
     def boom(jpeg):
         raise PhotoModelUnavailable("no credentials")
